@@ -652,3 +652,18 @@ button.craft-slot:hover, button.craft-slot:focus-visible { background: #b2b2b2; 
   .inventory-tabs, .recipe-filters { margin-bottom: 4px; }
   .recipe-list { max-height: 48vh; }
 }
+/* Survival UI stays above the touch surface and clear of the hotbar. */
+.mode-select { width: 100%; font-size: 14px; color-scheme: dark; }
+.vitals { position: absolute; top: calc(10px + var(--safe-top)); left: 50%; transform: translateX(-50%); padding: 7px 10px; background: #182019bb; color: #fff0dd; font-size: 14px; white-space: nowrap; text-shadow: 1px 2px #000; border-bottom: 2px solid #6d925c; }
+.vitals.danger { color: #ff8b83; border-color: #d35042; }
+.eat-btn { width: auto; position: absolute; top: calc(51px + var(--safe-top)); left: 50%; transform: translateX(-50%); pointer-events: auto; min-height: 42px; font-size: 13px; padding: 7px 14px; }
+.eat-btn:disabled { opacity: .6; cursor: default; }
+.slot, .inv-cell { position: relative; }
+.item-count { position: absolute; right: 2px; bottom: 0; color: white; font-size: 12px; text-shadow: 1px 1px 2px #000, -1px -1px #000; pointer-events: none; }
+.mining-progress { position: absolute; width: 100px; height: 8px; left: 50%; top: calc(50% + 38px); transform: translateX(-50%); accent-color: #97cb68; }
+.target-label { position: absolute; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); color: white; font-size: 12px; text-shadow: 1px 1px 2px #000; white-space: nowrap; }
+.death-menu { background: #3b0808aa; }
+@media (max-width: 600px) { .debug { top: calc(102px + var(--safe-top)); font-size: 10px; } }
+.recipe-search { min-height: 40px; padding: 7px 10px; border: 2px solid #555; background: #eee; color: #222; font: inherit; font-size: 14px; user-select: text; }
+.cursor-stack { flex-wrap: wrap; }
+.cursor-stack .mc-btn { min-height: 32px; font-size: 11px; margin-left: auto; }

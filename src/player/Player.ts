@@ -38,6 +38,8 @@ export class Player {
   flying = false;
   inWater = false;
   headInWater = false;
+  landedDistance = 0;
+  private fallTop = 0;
   private world: World;
 
   constructor(world: World) {
@@ -49,6 +51,9 @@ export class Player {
     this.y = y;
     this.z = z;
     this.vx = this.vy = this.vz = 0;
+    this.fallTop = y;
+    this.landedDistance = 0;
+    this.onGround = false;
   }
 
   rotate(dyaw: number, dpitch: number): void {
@@ -77,11 +82,15 @@ export class Player {
   }
 
   update(dt: number, input: MoveInput, autoJump: boolean): void {
+    this.landedDistance = 0;
     const world = this.world;
     const feetBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + 0.3), Math.floor(this.z));
     const midBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + 1.0), Math.floor(this.z));
     this.inWater = feetBlock === WATER || midBlock === WATER;
     this.headInWater = world.getBlock(Math.floor(this.x), Math.floor(this.eyeY), Math.floor(this.z)) === WATER;
+
+    if (this.flying || this.inWater || this.onGround) this.fallTop = this.y;
+    this.fallTop = Math.max(this.fallTop, this.y);
 
     // --- Горизонтальное желаемое направление в мировых координатах ---
     let mx = input.moveX;
@@ -165,6 +174,11 @@ export class Player {
     if (!stepped) {
       if (hitX) this.vx = 0;
       if (hitZ) this.vz = 0;
+    }
+
+    if (this.onGround && !this.flying && !this.inWater) {
+      this.landedDistance = Math.max(0, this.fallTop - this.y);
+      this.fallTop = this.y;
     }
 
     if (this.flying && this.onGround && input.sneak) this.flying = false;

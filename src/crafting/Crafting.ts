@@ -96,9 +96,28 @@ export class Crafting {
 
   canFill(recipe: Recipe): boolean { return this.prepare(recipe) !== null; }
 
-  fill(recipe: Recipe): boolean {
+  fill(recipe: Recipe, maximum = false): boolean {
     const state = this.prepare(recipe);
     if (!state) return false;
+    if (maximum) {
+      const needs = new Map<number, number>();
+      for (const s of state.grid) if (s) needs.set(s.id, (needs.get(s.id) ?? 0) + 1);
+      let extra = Infinity;
+      for (const [id, perCraft] of needs) {
+        const available = state.slots.reduce((n, s) => n + (s?.id === id ? s.count : 0), 0);
+        extra = Math.min(extra, Math.floor(available / perCraft), ITEM_BY_ID.get(id)!.maxStack - 1);
+      }
+      for (const target of state.grid) if (target) {
+        let left = extra;
+        for (let i = 0; i < state.slots.length && left > 0; i++) {
+          const stack = state.slots[i];
+          if (stack?.id !== target.id) continue;
+          const n = Math.min(stack.count, left);
+          stack.count -= n; left -= n; target.count += n;
+          if (!stack.count) state.slots[i] = null;
+        }
+      }
+    }
     this.slots = state.slots;
     this.grid = state.grid;
     return true;

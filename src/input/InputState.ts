@@ -30,6 +30,7 @@ export class InputState {
 
 /** Действия, которые ввод отправляет игре (а не читает по состоянию). */
 export interface InputActions {
+  eat?(): void;
   breakBlock(): void;
   placeBlock(): void;
   selectHotbar(index: number): void;

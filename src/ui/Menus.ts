@@ -1,3 +1,4 @@
+import type { GameMode } from '../player/Survival.ts';
 import { GAME_TITLE, GAME_VERSION, type GameSettings } from '../config.ts';
 import type { Settings } from '../core/Settings.ts';
 import { button, el, show } from './dom.ts';
@@ -5,7 +6,7 @@ import { button, el, show } from './dom.ts';
 /** Главное меню. */
 export class MainMenu {
   readonly root: HTMLElement;
-  onPlay: ((seed: string) => void) | null = null;
+  onPlay: ((seed: string, mode: GameMode) => void) | null = null;
   onSettings: (() => void) | null = null;
   private seedInput: HTMLInputElement;
 
@@ -14,14 +15,19 @@ export class MainMenu {
       class: 'mc-input', type: 'text', placeholder: 'Сид мира (необязательно)',
       autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
     });
+    const mode = el('select', { class: 'mc-input mode-select', 'aria-label': 'Режим игры' }, [
+      el('option', { value: 'survival' }, ['Выживание — здоровье, голод и добыча']),
+      el('option', { value: 'creative' }, ['Творческий — полёт и все блоки']),
+    ]);
     this.root = el('div', { class: 'overlay main-menu' }, [
       el('div', { class: 'menu-box' }, [
         el('h1', { class: 'title' }, [GAME_TITLE]),
         el('div', { class: 'subtitle' }, ['Веб-версия в духе Pocket Edition']),
         this.seedInput,
-        button('Играть', () => this.onPlay?.(this.seedInput.value.trim()), 'primary big'),
+        mode,
+        button('Играть', () => this.onPlay?.(this.seedInput.value.trim(), mode.value as GameMode), 'primary big'),
         button('Настройки', () => this.onSettings?.(), 'big'),
-        el('div', { class: 'version' }, [`v${GAME_VERSION} · творческий режим`]),
+        el('div', { class: 'version' }, [`v${GAME_VERSION} · животные и выживание`]),
       ]),
     ]);
     parent.appendChild(this.root);
@@ -72,7 +78,7 @@ export class SettingsPanel {
       this.slider('sensitivity', 'Чувствительность', 0.3, 3, 0.1, (v) => `${Math.round(v * 100)}%`),
       this.slider('touchButtonSize', 'Размер сенсорных кнопок', 56, 80, 4, (v) => `${v} px`),
       this.toggle('touchGestures', 'Тап / удержание для блоков'),
-      el('p', { class: 'control-help' }, ['Слева — движение, справа — обзор. Кнопки «Сломать» и «Поставить» работают по прицелу; удерживайте для повтора. Двойной прыжок — полёт. Включите тап / удержание, чтобы вернуть управление блоками жестами.']),
+      el('p', { class: 'control-help' }, ['Слева — движение, справа — обзор. Кнопки «Сломать» и «Поставить» работают по прицелу; удерживайте для повтора. Двойной прыжок — полёт только в творческом режиме. Включите тап / удержание, чтобы вернуть управление блоками жестами.']),
       this.toggle('autoJump', 'Автопрыжок'),
       this.toggle('invertY', 'Инвертировать ось Y'),
       this.toggle('showCoords', 'Показывать координаты и FPS'),

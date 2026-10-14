@@ -30,7 +30,7 @@ shaped('bricks', ['BB', 'BB'], { B: 'brick' }, 'bricks');
 shaped('clay', ['CC', 'CC'], { C: 'clay_ball' }, 'clay');
 shaped('snow', ['SS', 'SS'], { S: 'snowball' }, 'snow');
 shaped('glowstone', ['DD', 'DD'], { D: 'glowstone_dust' }, 'glowstone');
-shaped('wool_white', ['SS', 'SS'], { S: 'string' }, 'wool_white');
+shaped('wool_from_string', ['SS', 'SS'], { S: 'string' }, 'wool_white');
 shaped('bookshelf', ['PPP', 'BBB', 'PPP'], { P: 'planks', B: 'book' }, 'bookshelf');
 shaped('tnt', ['GSG', 'SGS', 'GSG'], { G: 'gunpowder', S: 'sand' }, 'tnt');
 shaped('paper', ['SSS'], { S: 'sugar_cane' }, 'paper', 3);

@@ -92,6 +92,7 @@ export class KeyboardMouse {
         e.preventDefault();
         break;
       }
+      case 'KeyR': this.actions.eat?.(); break;
       case 'KeyF': this.actions.toggleFly(); break;
       case 'KeyE': this.actions.toggleInventory(); break;
       case 'KeyP': this.actions.togglePause(); break;

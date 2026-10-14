@@ -1,3 +1,4 @@
+import type { GameMode } from '../player/Survival.ts';
 import { Crafting } from '../crafting/Crafting.ts';
 import { ITEMS, ITEM_BY_ID, type Category, type Slot } from '../crafting/Items.ts';
 import { fits, RECIPES, type Recipe } from '../crafting/Recipes.ts';
@@ -24,6 +25,7 @@ export class Inventory {
   private tabs: HTMLElement;
   private tab: 'creative' | 'craft' = 'creative';
   private single = false;
+  private mode: GameMode = 'creative';
   private selectedRecipe: Recipe | null = null;
   private focusBefore: HTMLElement | null = null;
 
@@ -32,7 +34,7 @@ export class Inventory {
     this.title = el('span', { class: 'panel-title', id: 'inventory-title' }, ['Инвентарь']);
     this.content = el('div', { class: 'inventory-content' });
     this.status = el('div', { class: 'craft-status', role: 'status', 'aria-live': 'polite' });
-    this.search = el('input', { class: 'mc-input recipe-search', type: 'search', placeholder: 'Поиск предметов…',
+    this.search = el('input', { class: 'recipe-search', type: 'search', placeholder: 'Поиск предметов…',
       'aria-label': 'Поиск предметов и рецептов', input: () => this.render() });
     this.category = el('select', { class: 'recipe-category', 'aria-label': 'Категория', change: () => this.render() },
       Object.entries(categories).map(([value, label]) => el('option', { value }, [label])));
@@ -62,10 +64,11 @@ export class Inventory {
     parent.appendChild(this.root);
   }
 
-  open(workbench = false): void {
+  open(workbench = false, mode: GameMode = 'creative'): void {
+    this.mode = mode;
     if (!this.model.setSize(workbench ? 3 : 2)) return;
     this.focusBefore = document.activeElement as HTMLElement;
-    if (workbench) this.tab = 'craft';
+    if (workbench || mode === 'survival') this.tab = 'craft';
     this.selectedRecipe = null;
     this.title.textContent = workbench ? 'Верстак · 3 × 3' : 'Инвентарь · 2 × 2';
     this.status.textContent = '';
@@ -119,7 +122,7 @@ export class Inventory {
     const focusArea = active?.dataset.area;
     const focusIndex = active?.dataset.index;
     const scroll = this.content.querySelector('.recipe-list, .inv-grid')?.scrollTop ?? 0;
-    this.tabs.replaceChildren(...(['creative', 'craft'] as const).map(tab => {
+    this.tabs.replaceChildren(...(['creative', 'craft'] as const).filter(tab => this.mode === 'creative' || tab === 'craft').map(tab => {
       const btn = button(tab === 'creative' ? 'Творчество' : 'Создание', () => {
         this.tab = tab; this.status.textContent = ''; this.render();
       }, this.tab === tab ? 'active' : '');
@@ -189,9 +192,10 @@ export class Inventory {
       }, 'small craft-all');
       all.disabled = !result;
       const discard = button('Удалить из руки', () => {
-        this.model.cursor = null; this.changed('Предмет из руки удалён (творческий режим).');
+        this.model.cursor = null; this.changed('Предмет из руки удалён.');
       }, 'small');
       discard.disabled = !this.model.cursor;
+      discard.title = 'Удалить безвозвратно (предмет не выпадет в мир)';
       const cursor = el('div', { class: 'cursor-stack' }, [el('span', { class: 'craft-slot' }, this.icon(this.model.cursor)),
         el('span', {}, [`В руке: ${this.stackLabel(this.model.cursor)}`]), discard]);
       const workspace = el('section', { class: 'craft-workspace' }, [
@@ -213,12 +217,24 @@ export class Inventory {
 
   private recipePreview(recipe: Recipe): HTMLElement {
     const size = recipe.shapeless ? Math.ceil(Math.sqrt(recipe.ingredients.length)) : recipe.width;
+    const needs = new Map<string, number>();
+    for (const ingredient of recipe.ingredients) if (ingredient) {
+      const label = ingredient.length > 1 ? 'Шерсть любого цвета' : ITEM_BY_ID.get(ingredient[0])!.name;
+      needs.set(label, (needs.get(label) ?? 0) + 1);
+    }
+    const maximum = button('Заполнить максимум', () => {
+      const ok = this.model.fill(recipe, true);
+      this.changed(ok ? 'Материалы разложены. Нажмите «Создать всё».' : 'Не хватает материалов, места или предмет в руке.');
+    }, 'small');
+    maximum.disabled = !this.model.canFill(recipe);
     return el('div', { class: 'recipe-preview' }, [
       el('h3', {}, [`${ITEM_BY_ID.get(recipe.result.id)!.name} × ${recipe.result.count}`]),
       el('div', { class: 'recipe-pattern', style: `--grid-size:${size}` }, recipe.ingredients.map(ingredient =>
         el('span', { class: 'craft-slot', title: ingredient?.map(id => ITEM_BY_ID.get(id)!.name).join(' / ') ?? 'Пусто' },
           this.icon(ingredient ? { id: ingredient[0], count: 1 } : null)))),
+      el('p', { class: 'hint' }, [[...needs].map(([label, count]) => `${label} × ${count}`).join(' · ')]),
       el('p', { class: 'hint' }, [recipe.shapeless ? 'Ингредиенты в любом порядке.' : 'Соблюдайте форму. Допустимы сдвиг и зеркальное отражение.']),
+      maximum,
     ]);
   }
 }

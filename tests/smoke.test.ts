@@ -40,6 +40,7 @@ test('полный цикл: меню → загрузка → игра → вз
   // Нажимаем «Играть»
   const playBtn = [...win.document.querySelectorAll('button')].find((b) => b.textContent === 'Играть')!;
   (win.document.querySelector('.mc-input') as HTMLInputElement).value = '12345';
+  (win.document.querySelector('.mode-select') as HTMLSelectElement).value = 'creative';
   playBtn.click();
   assert.equal(game.state, 'loading');
 

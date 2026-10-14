@@ -1,3 +1,7 @@
+import { Animals } from '../entities/Animals.ts';
+import { ANIMAL_NAMES, type Animal } from '../entities/Animal.ts';
+import { Mining, Survival, type GameMode } from '../player/Survival.ts';
+import { button, el, show } from '../ui/dom.ts';
 import {
   BoxGeometry, Color, EdgesGeometry, LineBasicMaterial, LineSegments, PerspectiveCamera, Scene,
   WebGLRenderer, type DataArrayTexture,
@@ -26,7 +30,7 @@ import { Crafting } from '../crafting/Crafting.ts';
 import { ITEM_BY_ID } from '../crafting/Items.ts';
 import type { Settings } from './Settings.ts';
 
-type GameState = 'menu' | 'loading' | 'playing' | 'paused';
+type GameState = 'menu' | 'loading' | 'playing' | 'paused' | 'dead';
 
 const MOUSE_LOOK_SPEED = 0.0022; // радиан на пиксель при чувствительности 100 %
 const TOUCH_LOOK_SPEED = 0.0045;
@@ -42,6 +46,15 @@ export class Game {
   private sky: Sky;
   private selectionBox: LineSegments;
 
+  private mode: GameMode = 'creative';
+  private crafting = new Crafting();
+  private survival = new Survival(this.crafting);
+  private mining = new Mining();
+  private animals: Animals | null = null;
+  private targetAnimal: Animal | null = null;
+  private attackCooldown = 0;
+  private spawn = { x: 0, y: 0, z: 0 };
+  private deathMenu: HTMLElement;
   private world: World | null = null;
   private chunkRenderer: ChunkRenderer | null = null;
   private player: Player | null = null;
@@ -60,7 +73,6 @@ export class Game {
   private settingsReturnTo: GameState = 'menu';
 
   private state: GameState = 'menu';
-  private crafting = new Crafting();
   private get hotbar(): number[] { return this.crafting.slots.slice(0, 9).map(s => s?.id ?? AIR); }
   private selectedSlot = 0;
 
@@ -103,15 +115,25 @@ export class Game {
 
     // --- UI ---
     this.hud = new Hud(container);
-    this.crafting.reset(DEFAULT_HOTBAR);
     this.inventory = new Inventory(container, this.crafting);
     this.mainMenu = new MainMenu(container);
     this.pauseMenu = new PauseMenu(container);
     this.settingsPanel = new SettingsPanel(container, settings);
     this.loading = new LoadingScreen(container);
 
+    this.deathMenu = el('div', { class: 'overlay death-menu hidden' }, [
+      el('div', { class: 'menu-box' }, [
+        el('h2', { class: 'title small' }, ['Вы погибли']),
+        el('p', { class: 'hint' }, ['Вещи потеряны. Мир останется прежним.']),
+        button('Возродиться', () => this.respawn(), 'primary big'),
+        button('В главное меню', () => this.quitToMenu(), 'big'),
+      ]),
+    ]);
+    container.appendChild(this.deathMenu);
+
     // --- Ввод ---
     const actions: InputActions = {
+      eat: () => this.eat(),
       breakBlock: () => this.breakBlock(),
       placeBlock: () => this.placeBlock(),
       selectHotbar: (i) => this.selectSlot(i),
@@ -129,8 +151,10 @@ export class Game {
 
     this.hud.onSelectSlot = (i) => this.selectSlot(i);
     this.hud.onOpenInventory = () => this.openInventory();
+    this.hud.onEat = () => this.eat();
     this.hud.onPause = () => this.pause();
     this.inventory.onPick = (id) => {
+      if (this.mode !== 'creative') return;
       this.crafting.slots[this.selectedSlot] = { id, count: ITEM_BY_ID.get(id)!.maxStack };
       this.syncInventory();
       this.hud.setSelected(this.selectedSlot, id);
@@ -139,7 +163,7 @@ export class Game {
     this.inventory.onClose = () => this.closeInventory();
     this.inventory.onChange = () => this.syncInventory();
 
-    this.mainMenu.onPlay = (seed) => this.startWorld(seed);
+    this.mainMenu.onPlay = (seed, mode) => this.startWorld(seed, mode);
     this.mainMenu.onSettings = () => this.openSettings('menu');
     this.pauseMenu.onResume = () => this.resume();
     this.pauseMenu.onSettings = () => this.openSettings('paused');
@@ -165,6 +189,7 @@ export class Game {
 
   private setState(state: GameState): void {
     this.state = state;
+    show(this.deathMenu, state === 'dead');
     const playing = state === 'playing';
     this.mainMenu.setVisible(state === 'menu');
     this.pauseMenu.setVisible(state === 'paused');
@@ -173,29 +198,39 @@ export class Game {
     this.touch.setEnabled(playing && IS_TOUCH_DEVICE);
     this.keyboard.setEnabled(playing);
     if (!playing) {
+      this.mining.reset();
       this.input.reset();
       this.keyboard.exitLock();
     }
   }
 
-  startWorld(seedText: string): void {
+  startWorld(seedText: string, mode: GameMode = 'creative'): void {
     this.disposeWorld();
+    this.mode = mode;
+    this.survival = new Survival(this.crafting);
+    this.mining.reset();
+    this.accumulator = 0;
+    this.attackCooldown = 0;
     let seed: number;
     if (seedText.length === 0) seed = (Math.random() * 0xffffffff) >>> 0;
     else if (/^-?\d+$/.test(seedText)) seed = Number(seedText) >>> 0;
     else seed = hashString(seedText);
 
     this.world = new World(seed);
+    this.animals = new Animals(this.scene, this.world);
     this.chunkRenderer = new ChunkRenderer(this.scene, this.world, this.materials);
     this.player = new Player(this.world);
     const spawn = this.world.gen.findSpawn();
     this.player.teleport(spawn.x, spawn.y, spawn.z);
     this.player.yaw = 0;
     this.player.pitch = -0.1;
-    this.crafting.reset(DEFAULT_HOTBAR);
+    this.crafting.reset(this.mode === 'creative' ? DEFAULT_HOTBAR : []);
     this.selectedSlot = 0;
     this.syncInventory();
     this.hud.setSelected(0, this.hotbar[0]);
+    this.hud.setSurvival(this.mode, this.survival, this.hotbar);
+    this.hud.setMining(0);
+    this.hud.setTarget('');
     this.hud.setFlying(false);
     this.touch.setFlying(false);
     this.wasFlying = false;
@@ -241,6 +276,8 @@ export class Game {
       if (dist > bestDist) { bestDist = dist; bestYaw = yaw; }
     }
     player.yaw = bestYaw;
+    this.spawn = { x: player.x, y: player.y, z: player.z };
+    this.animals?.populate(player.x, player.z);
     this.setState('playing');
     if (!IS_TOUCH_DEVICE) this.keyboard.requestLock();
   }
@@ -282,8 +319,9 @@ export class Game {
 
   private openInventory(workbench = false): void {
     if (this.state !== 'playing' || this.inventory.isOpen) return;
-    this.inventory.open(workbench);
+    this.inventory.open(workbench, this.mode);
     this.input.reset();
+    this.mining.reset();
     this.touch.setEnabled(false);
     this.keyboard.setEnabled(false);
     this.keyboard.exitLock();
@@ -301,13 +339,16 @@ export class Game {
   }
 
   private disposeWorld(): void {
+    this.animals?.dispose();
+    this.animals = null;
+    this.targetAnimal = null;
     this.chunkRenderer?.dispose();
     this.chunkRenderer = null;
     this.world = null;
     this.player = null;
     this.currentHit = null;
     this.selectionBox.visible = false;
-    this.crafting.reset(DEFAULT_HOTBAR);
+    this.crafting.reset([]);
     this.closeInventory();
   }
 
@@ -350,30 +391,83 @@ export class Game {
   }
 
   private toggleFly(): void {
-    if (this.state !== 'playing' || this.inventory.isOpen || !this.player) return;
+    if (this.state !== 'playing' || this.inventory.isOpen || !this.player || this.mode !== 'creative') return;
     this.player.toggleFly();
     this.wasFlying = this.player.flying;
     this.hud.setFlying(this.player.flying);
     this.touch.setFlying(this.player.flying);
   }
 
+  private eat(): void {
+    if (this.state !== 'playing' || this.inventory.isOpen || this.mode !== 'survival') return;
+    if (this.survival.eat()) this.hud.toast('Еда: +6 к сытости');
+    this.hud.setSurvival(this.mode, this.survival, this.hotbar);
+  }
+
+  private respawn(): void {
+    if (this.state !== 'dead' || !this.player || !this.world) return;
+    // Original spawn may have unloaded or been excavated. Loading rechecks safety.
+    this.player.teleport(this.spawn.x, this.spawn.y, this.spawn.z);
+    this.survival = new Survival(this.crafting);
+    this.crafting.reset([]);
+    this.syncInventory();
+    this.hud.setSelected(this.selectedSlot, AIR);
+    this.mining.reset(); this.attackCooldown = 0; this.accumulator = 0;
+    const r = this.settings.get().renderDistance;
+    this.loadTotalGen = (2 * (r + 1) + 1) ** 2;
+    this.loadTotalMesh = ChunkRenderer.chunksInRadius(r);
+    this.loading.setProgress(0, 'Возрождение…');
+    this.setState('loading');
+  }
+
   private breakBlock(): void {
-    if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.currentHit) return;
+    if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.player) return;
+    this.updateTarget();
+    if (this.targetAnimal) {
+      if (this.attackCooldown > 0) return;
+      this.attackCooldown = 0.45;
+      const animal = this.targetAnimal;
+      if (animal.hit(this.player.x, this.player.z)) {
+        this.animals?.remove(animal);
+        if (this.mode === 'survival') {
+          this.survival.food += animal.kind === 'cow' ? 3 : 2;
+          this.hud.toast('Получено мясо. Кнопка «Есть» или R — поесть');
+        }
+      }
+      this.updateTarget();
+      return;
+    }
     const hit = this.currentHit;
-    if (!BLOCKS[hit.id].breakable) return;
-    this.world.setBlock(hit.x, hit.y, hit.z, AIR);
+    if (!hit || !BLOCKS[hit.id].breakable) return;
+    if (this.mode === 'survival') {
+      const done = this.mining.strike(`${hit.x},${hit.y},${hit.z}`, hit.id);
+      this.hud.setMining(this.mining.progress);
+      if (!done) return;
+    }
+    if (!this.world.setBlock(hit.x, hit.y, hit.z, AIR)) return;
+    if (this.mode === 'survival') {
+      const drop = this.survival.collect(hit.id);
+      if (!drop) {
+        this.world.setBlock(hit.x, hit.y, hit.z, hit.id);
+        this.hud.toast('Инвентарь полон: для добычи нужно свободное место');
+      }
+      this.syncInventory();
+      this.hud.setSurvival(this.mode, this.survival, this.hotbar);
+    }
+    this.mining.reset();
     this.updateTarget();
   }
 
   private placeBlock(): void {
-    if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.player || !this.currentHit) return;
+    if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.player) return;
+    this.updateTarget();
+    if (!this.currentHit || this.targetAnimal) return;
     if (this.currentHit.id === CRAFTING_TABLE && !this.input.sneak) {
       this.openInventory(true);
       return;
     }
-    const selected = this.hotbar[this.selectedSlot];
-    const id = ITEM_BY_ID.get(selected)?.blockId ?? AIR;
-    if (id === AIR) return;
+    const id = ITEM_BY_ID.get(this.hotbar[this.selectedSlot])?.blockId ?? AIR;
+    if (id === AIR || (this.mode === 'survival' && this.survival.count(id) < 1)) return;
     const hit = this.currentHit;
     let x: number, y: number, z: number;
     if (BLOCK_REPLACEABLE[hit.id] === 1) {
@@ -387,7 +481,14 @@ export class Game {
     if (BLOCK_REPLACEABLE[existing] !== 1) return;
     const def = BLOCKS[id];
     if (def.solid && this.player.intersectsBlock(x, y, z)) return;
-    this.world.setBlock(x, y, z, id);
+    if (def.solid && this.animals?.intersectsBlock(x, y, z)) return;
+    if (!this.world.setBlock(x, y, z, id)) return;
+    if (this.mode === 'survival') {
+      const stack = this.crafting.slots[this.selectedSlot]!;
+      if (--stack.count === 0) this.crafting.slots[this.selectedSlot] = null;
+      this.syncInventory();
+    }
+    this.hud.setSurvival(this.mode, this.survival, this.hotbar);
     this.updateTarget();
   }
 
@@ -401,7 +502,11 @@ export class Game {
     const [dx, dy, dz] = p.lookDirection();
     const hit = raycastBlocks(this.world, p.x, p.eyeY, p.z, dx, dy, dz, REACH_DISTANCE);
     this.currentHit = hit;
-    if (hit) {
+    this.targetAnimal = this.animals?.target([p.x, p.eyeY, p.z], [dx, dy, dz], Math.min(REACH_DISTANCE, hit?.distance ?? REACH_DISTANCE)) ?? null;
+    this.hud.setTarget(this.targetAnimal ? `${ANIMAL_NAMES[this.targetAnimal.kind]} · ♥ ${this.targetAnimal.health}` : '');
+    if (this.targetAnimal || !hit || `${hit.x},${hit.y},${hit.z}` !== this.mining.key) this.mining.reset();
+    this.hud.setMining(this.mining.progress);
+    if (hit && !this.targetAnimal) {
       this.selectionBox.visible = true;
       this.selectionBox.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
     } else {
@@ -448,6 +553,7 @@ export class Game {
   };
 
   private tickPlaying(dt: number, s: GameSettings): void {
+    if (this.inventory.isOpen) { this.input.reset(); return; }
     const world = this.world!;
     const player = this.player!;
     const chunkRenderer = this.chunkRenderer!;
@@ -461,9 +567,19 @@ export class Game {
     // Физика с фиксированным шагом
     this.accumulator = Math.min(this.accumulator + dt, FIXED_TIMESTEP * MAX_SUBSTEPS);
     while (this.accumulator >= FIXED_TIMESTEP) {
-      player.update(FIXED_TIMESTEP, this.input, s.autoJump);
+      const sprint = this.input.sprint && (this.mode === 'creative' || this.survival.canSprint);
+      player.update(FIXED_TIMESTEP, { ...this.input, sprint }, s.autoJump);
+      this.animals?.update(FIXED_TIMESTEP, player.x, player.z);
+      this.attackCooldown = Math.max(0, this.attackCooldown - FIXED_TIMESTEP);
+      this.mining.update(FIXED_TIMESTEP);
+      if (this.mode === 'survival') {
+        if (player.landedDistance > 3) this.survival.damage(Math.floor(player.landedDistance - 3));
+        this.survival.update(FIXED_TIMESTEP, Math.hypot(player.vx, player.vz) > 0.2, sprint, player.headInWater);
+        if (this.survival.dead) { this.setState('dead'); this.accumulator = 0; return; }
+      }
       this.accumulator -= FIXED_TIMESTEP;
     }
+    this.hud.setSurvival(this.mode, this.survival, this.hotbar);
     if (player.flying !== this.wasFlying) {
       // Полёт мог завершиться приземлением — синхронизируем интерфейс
       this.wasFlying = player.flying;
