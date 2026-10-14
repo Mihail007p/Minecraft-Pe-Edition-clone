@@ -119,7 +119,6 @@ export function createFakeBrowser(): FakeBrowser {
   proto.toDataURL = () => 'data:image/png;base64,';
 
   // ---- глобали для кода игры ----
-  const g = globalThis as Record<string, unknown>;
   const define = (name: string, value: unknown) =>
     Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
   define('window', win);
@@ -133,7 +132,7 @@ export function createFakeBrowser(): FakeBrowser {
     'KeyboardEvent', 'MouseEvent', 'CustomEvent', 'Image', 'ImageData', 'getComputedStyle', 'matchMedia'] as const) {
     if ((win as unknown as Record<string, unknown>)[name] !== undefined) define(name, (win as unknown as Record<string, unknown>)[name]);
   }
-  if (!('PointerEvent' in g)) {
+  if (typeof win.PointerEvent !== 'function') {
     // jsdom без PointerEvent — наследуем от MouseEvent с нужными полями
     class PointerEventPolyfill extends win.MouseEvent {
       pointerId: number;

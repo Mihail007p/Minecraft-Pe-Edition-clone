@@ -1,5 +1,6 @@
 import { BREAK_REPEAT_MS, DOUBLE_TAP_MS, HOLD_TO_BREAK_MS, TAP_MAX_MOVE_PX } from '../config.ts';
 import type { InputActions, InputState } from './InputState.ts';
+import { bindTouchContacts, type TouchContact } from './TouchContacts.ts';
 
 const JOY_RADIUS = 56; // px — максимальное отклонение ручки
 const JOY_ZONE = 0.42; // доля ширины экрана слева, где палец управляет движением
@@ -29,7 +30,9 @@ export class TouchControls {
   private holdTimer: number | null = null;
   private breakTimer: number | null = null;
   private breaking = false;
-  private lastJumpTap = 0;
+  private lastJumpTap = -Infinity;
+  private bindings: ReturnType<typeof bindTouchContacts>[] = [];
+  private buttonResets: (() => void)[] = [];
   private enabled = false;
 
   constructor(parent: HTMLElement, state: InputState, actions: InputActions) {
@@ -55,11 +58,14 @@ export class TouchControls {
     this.jumpBtn = this.root.querySelector('.jump-btn')!;
     this.sneakBtn = this.root.querySelector('.sneak-btn')!;
 
-    this.layer.addEventListener('pointerdown', this.onDown);
-    this.layer.addEventListener('pointermove', this.onMove);
-    this.layer.addEventListener('pointerup', this.onUp);
-    this.layer.addEventListener('pointercancel', this.onUp);
-    this.layer.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.bindings.push(bindTouchContacts(this.layer, {
+      down: this.onDown,
+      move: this.onMove,
+      up: this.onUp,
+    }));
+    window.addEventListener('blur', this.releaseAll);
+    window.addEventListener('resize', this.releaseAll);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
 
     this.bindButton(this.jumpBtn, (down) => {
       this.state.jump = down;
@@ -67,7 +73,7 @@ export class TouchControls {
         const now = performance.now();
         if (now - this.lastJumpTap < DOUBLE_TAP_MS) {
           this.actions.toggleFly();
-          this.lastJumpTap = 0;
+          this.lastJumpTap = -Infinity;
         } else {
           this.lastJumpTap = now;
         }
@@ -91,28 +97,32 @@ export class TouchControls {
   }
 
   private bindButton(el: HTMLElement, handler: (down: boolean) => void): void {
-    el.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      el.setPointerCapture(e.pointerId);
-      el.classList.add('active');
-      handler(true);
-    });
-    const up = (e: PointerEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
+    let pointer: number | null = null;
+    const reset = () => {
+      pointer = null;
       el.classList.remove('active');
       handler(false);
     };
-    el.addEventListener('pointerup', up);
-    el.addEventListener('pointercancel', up);
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.buttonResets.push(reset);
+    this.bindings.push(bindTouchContacts(el, {
+      down: (e) => {
+        if (!this.enabled || el.classList.contains('hidden') || pointer !== null) return false;
+        pointer = e.pointerId;
+        el.classList.add('active');
+        handler(true);
+        return true;
+      },
+      move: () => undefined,
+      up: (e, cancelled) => {
+        if (e.pointerId !== pointer) return;
+        if (cancelled) this.lastJumpTap = -Infinity;
+        reset();
+      },
+    }));
   }
 
-  private onDown = (e: PointerEvent): void => {
-    if (!this.enabled || e.pointerType === 'mouse') return;
-    e.preventDefault();
-    this.layer.setPointerCapture(e.pointerId);
+  private onDown = (e: TouchContact): boolean => {
+    if (!this.enabled) return false;
     const width = window.innerWidth;
     if (this.movePointer === null && e.clientX < width * JOY_ZONE) {
       this.movePointer = e.pointerId;
@@ -121,9 +131,10 @@ export class TouchControls {
       this.joyBase.style.left = `${e.clientX}px`;
       this.joyBase.style.top = `${e.clientY}px`;
       this.joyKnob.style.transform = 'translate(-50%, -50%)';
-      return;
+      return true;
     }
-    if (this.lookPointer === null) {
+    // Второй палец слева не должен случайно ставить/ломать блоки.
+    if (e.clientX >= width * JOY_ZONE && this.lookPointer === null) {
       this.lookPointer = e.pointerId;
       this.lookLast = { x: e.clientX, y: e.clientY };
       this.lookStart = { x: e.clientX, y: e.clientY, t: performance.now() };
@@ -137,10 +148,12 @@ export class TouchControls {
         this.actions.breakBlock();
         this.breakTimer = window.setInterval(() => this.actions.breakBlock(), BREAK_REPEAT_MS);
       }, HOLD_TO_BREAK_MS);
+      return true;
     }
+    return false;
   };
 
-  private onMove = (e: PointerEvent): void => {
+  private onMove = (e: TouchContact): void => {
     if (!this.enabled) return;
     if (e.pointerId === this.movePointer) {
       let dx = e.clientX - this.moveOrigin.x;
@@ -177,7 +190,7 @@ export class TouchControls {
     }
   };
 
-  private onUp = (e: PointerEvent): void => {
+  private onUp = (e: TouchContact, cancelled: boolean): void => {
     if (e.pointerId === this.movePointer) {
       this.movePointer = null;
       this.state.moveX = 0;
@@ -187,11 +200,12 @@ export class TouchControls {
       return;
     }
     if (e.pointerId === this.lookPointer) {
+      this.lookMoved = Math.max(this.lookMoved, Math.hypot(e.clientX - this.lookStart.x, e.clientY - this.lookStart.y));
       const held = performance.now() - this.lookStart.t;
       const wasBreaking = this.breaking;
       this.clearTimers();
       this.lookPointer = null;
-      if (!wasBreaking && held < HOLD_TO_BREAK_MS + 80 && this.lookMoved <= TAP_MAX_MOVE_PX && this.enabled) {
+      if (!cancelled && !wasBreaking && held < HOLD_TO_BREAK_MS + 80 && this.lookMoved <= TAP_MAX_MOVE_PX && this.enabled) {
         this.actions.placeBlock();
       }
     }
@@ -203,11 +217,27 @@ export class TouchControls {
     this.breaking = false;
   }
 
-  private releaseAll(): void {
+  private onVisibilityChange = (): void => {
+    if (document.hidden) this.releaseAll();
+  };
+
+  private releaseAll = (): void => {
     this.clearTimers();
+    this.bindings.forEach((binding) => binding.reset());
+    this.buttonResets.forEach((reset) => reset());
+    this.lastJumpTap = -Infinity;
     this.movePointer = null;
     this.lookPointer = null;
     this.joyBase.classList.add('hidden');
     this.state.reset();
+  };
+
+  dispose(): void {
+    this.releaseAll();
+    this.bindings.forEach((binding) => binding.dispose());
+    window.removeEventListener('blur', this.releaseAll);
+    window.removeEventListener('resize', this.releaseAll);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    this.root.remove();
   }
 }
