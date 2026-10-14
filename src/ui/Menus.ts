@@ -70,6 +70,9 @@ export class SettingsPanel {
       this.slider('renderDistance', 'Дальность прорисовки', 3, 10, 1, (v) => `${v} чанков`),
       this.slider('fov', 'Поле зрения', 50, 110, 1, (v) => `${v}°`),
       this.slider('sensitivity', 'Чувствительность', 0.3, 3, 0.1, (v) => `${Math.round(v * 100)}%`),
+      this.slider('touchButtonSize', 'Размер сенсорных кнопок', 56, 80, 4, (v) => `${v} px`),
+      this.toggle('touchGestures', 'Тап / удержание для блоков'),
+      el('p', { class: 'control-help' }, ['Слева — движение, справа — обзор. Кнопки «Сломать» и «Поставить» работают по прицелу; удерживайте для повтора. Двойной прыжок — полёт. Включите тап / удержание, чтобы вернуть управление блоками жестами.']),
       this.toggle('autoJump', 'Автопрыжок'),
       this.toggle('invertY', 'Инвертировать ось Y'),
       this.toggle('showCoords', 'Показывать координаты и FPS'),
@@ -97,7 +100,7 @@ export class SettingsPanel {
   }
 
   private slider(
-    key: 'renderDistance' | 'fov' | 'sensitivity', label: string,
+    key: 'renderDistance' | 'fov' | 'sensitivity' | 'touchButtonSize', label: string,
     min: number, max: number, step: number, format: (v: number) => string,
   ): HTMLElement {
     const valueEl = el('span', { class: 'setting-value' });
@@ -120,7 +123,7 @@ export class SettingsPanel {
     ]);
   }
 
-  private toggle(key: 'autoJump' | 'invertY' | 'showCoords', label: string): HTMLElement {
+  private toggle(key: 'autoJump' | 'invertY' | 'showCoords' | 'touchGestures', label: string): HTMLElement {
     const btn = el('button', { class: 'mc-btn toggle', type: 'button' });
     const update = () => {
       const v = this.settings.get()[key];

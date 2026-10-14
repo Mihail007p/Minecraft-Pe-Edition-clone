@@ -7,7 +7,7 @@ import { HOLD_TO_BREAK_MS, BREAK_REPEAT_MS } from '../src/config.ts';
 import { Hud } from '../src/ui/Hud.ts';
 import { Inventory } from '../src/ui/Inventory.ts';
 
-function setup(pointer: boolean, brokenCapture = false) {
+function setup(pointer: boolean, brokenCapture = false, gestures = true) {
   const browser = createFakeBrowser();
   const win = browser.window;
   if (!pointer) Object.defineProperty(win, 'PointerEvent', { value: undefined, configurable: true });
@@ -24,10 +24,13 @@ function setup(pointer: boolean, brokenCapture = false) {
     selectHotbar() {}, scrollHotbar() {}, togglePause() {}, toggleInventory() {},
   };
   const controls = new TouchControls(win.document.getElementById('app')!, state, actions);
+  controls.configure({ touchGestures: gestures, touchButtonSize: 64 });
   controls.setEnabled(true);
   const layer = controls.root.querySelector('.touch-layer')!;
   const jump = controls.root.querySelector('.jump-btn')!;
   const sneak = controls.root.querySelector('.sneak-btn')!;
+  const breakBtn = controls.root.querySelector('.break-btn')!;
+  const placeBtn = controls.root.querySelector('.place-btn')!;
   const send = (target: EventTarget, phase: 'down' | 'move' | 'up' | 'cancel', id: number, x = 700, y = 300) => {
     let event: Event;
     if (pointer) {
@@ -44,7 +47,7 @@ function setup(pointer: boolean, brokenCapture = false) {
     return event;
   };
   return {
-    browser, win, state, calls, controls, layer, jump, sneak, send,
+    browser, win, state, calls, controls, layer, jump, sneak, breakBtn, placeBtn, send,
     close() {
       controls.dispose();
       browser.close();
@@ -188,4 +191,139 @@ test('HUD без Pointer Events: хотбар, инвентарь, пауза', 
     panel.root.dispatchEvent(new f.win.MouseEvent('click', { bubbles: true }));
     assert.equal(panel.isOpen, false, 'тап вне панели закрывает инвентарь');
   } finally { f.close(); }
+});
+
+for (const pointer of [true, false]) {
+  const mode = pointer ? 'Pointer Events' : 'Touch Events';
+
+  test(`${mode}: отдельные кнопки — обзор не меняет мир, мультитач и повтор действий`, async () => {
+    const f = setup(pointer, true, false);
+    try {
+      f.send(f.layer, 'down', 1, 120, 400);
+      f.send(f.win, 'move', 1, 120, 280);
+      f.send(f.layer, 'down', 2);
+      await new Promise((r) => setTimeout(r, HOLD_TO_BREAK_MS + 40));
+      assert.equal(f.calls.break, 0, 'палец на обзоре не ломает блоки');
+      f.send(f.win, 'up', 2);
+      f.send(f.layer, 'down', 2);
+      f.send(f.win, 'up', 2);
+      assert.equal(f.calls.place, 0, 'тап обзора не ставит блок');
+
+      f.send(f.layer, 'down', 2);
+      f.send(f.win, 'move', 2, 760, 330);
+      f.send(f.breakBtn, 'down', 3);
+      assert.equal(f.calls.break, 1, 'кнопка ломает сразу');
+      f.send(f.breakBtn, 'down', 4);
+      f.send(f.win, 'up', 4);
+      assert.equal(f.calls.break, 1, 'второй палец не дублирует действие');
+      await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+      assert.ok(f.calls.break >= 2, 'удержание повторяет ломание');
+      f.send(f.win, 'up', 3);
+      assert.equal(f.state.moveZ, 1);
+      assert.equal(f.state.lookDX, 60);
+      assert.equal(f.state.lookDY, 30);
+      const count = f.calls.break;
+      await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+      assert.equal(f.calls.break, count, 'отпускание вне кнопки останавливает повтор');
+
+      f.send(f.placeBtn, 'down', 5);
+      assert.equal(f.calls.place, 1);
+      await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+      assert.ok(f.calls.place >= 2, 'удержание позволяет строить');
+      f.send(f.win, 'cancel', 5);
+      const places = f.calls.place;
+      await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+      assert.equal(f.calls.place, places);
+    } finally { f.close(); }
+  });
+
+  test(`${mode}: прерывания и смена схемы останавливают кнопки блоков`, async () => {
+    const f = setup(pointer, false, false);
+    try {
+      for (const interrupt of [
+        () => f.controls.setEnabled(false),
+        () => f.win.dispatchEvent(new f.win.Event('blur')),
+        () => f.win.dispatchEvent(new f.win.Event('resize')),
+        () => {
+          Object.defineProperty(f.win.document, 'hidden', { value: true, configurable: true });
+          f.win.document.dispatchEvent(new f.win.Event('visibilitychange'));
+        },
+        () => f.controls.configure({ touchGestures: true, touchButtonSize: 80 }),
+      ]) {
+        f.controls.configure({ touchGestures: false, touchButtonSize: 64 });
+        f.controls.setEnabled(true);
+        f.send(f.breakBtn, 'down', 1);
+        f.send(f.placeBtn, 'down', 2);
+        interrupt();
+        const calls = { ...f.calls };
+        await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+        assert.deepEqual(f.calls, calls, 'таймеры остановлены');
+        assert.deepEqual(f.state, new InputState());
+        assert.equal(f.controls.root.querySelectorAll('.active').length, 0);
+      }
+      assert.ok(f.breakBtn.classList.contains('hidden'));
+      f.send(f.breakBtn, 'down', 9);
+      assert.equal(f.breakBtn.classList.contains('active'), false, 'скрытая кнопка не работает');
+      f.controls.configure({ touchGestures: false, touchButtonSize: 64 });
+      f.send(f.placeBtn, 'down', 10);
+      f.controls.dispose();
+      const count = f.calls.place;
+      await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+      assert.equal(f.calls.place, count, 'dispose очищает таймеры');
+    } finally { f.close(); }
+  });
+
+  test(`${mode}: мёртвая зона джойстика и устойчивый бег`, () => {
+    const f = setup(pointer, false, false);
+    try {
+      f.send(f.layer, 'down', 1, 120, 400);
+      f.send(f.win, 'move', 1, 120, 396);
+      assert.equal(f.state.moveZ, 0);
+      f.send(f.win, 'move', 1, 120, 391);
+      assert.ok(f.state.moveZ > 0 && f.state.moveZ < 0.03, 'плавный выход из мёртвой зоны');
+      f.send(f.win, 'move', 1, 120, 280);
+      assert.equal(f.state.sprint, true);
+      f.send(f.win, 'move', 1, 120, 315);
+      assert.equal(f.state.sprint, true, 'бег не мигает у порога');
+      f.send(f.win, 'move', 1, 120, 345);
+      assert.equal(f.state.sprint, false);
+      f.send(f.win, 'cancel', 1);
+      assert.equal(f.controls.root.classList.contains('moving'), false);
+      assert.equal(f.state.moveZ, 0);
+    } finally { f.close(); }
+  });
+}
+
+test('потеря capture кнопки блоков останавливает повтор', async () => {
+  const f = setup(true, false, false);
+  try {
+    f.send(f.breakBtn, 'down', 1);
+    f.breakBtn.dispatchEvent(new f.win.PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true }));
+    const count = f.calls.break;
+    await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+    assert.equal(f.calls.break, count);
+    assert.equal(f.breakBtn.classList.contains('active'), false);
+  } finally { f.close(); }
+});
+
+test('изменение visualViewport сбрасывает все касания', async () => {
+  const browser = createFakeBrowser();
+  const viewport = new browser.window.EventTarget();
+  Object.defineProperty(browser.window, 'visualViewport', { value: viewport });
+  const state = new InputState();
+  let breaks = 0;
+  const controls = new TouchControls(browser.window.document.getElementById('app')!, state, {
+    breakBlock() { breaks++; }, placeBlock() {}, toggleFly() {}, selectHotbar() {},
+    scrollHotbar() {}, togglePause() {}, toggleInventory() {},
+  });
+  try {
+    controls.setEnabled(true);
+    const button = controls.root.querySelector('.break-btn')!;
+    button.dispatchEvent(new browser.window.PointerEvent('pointerdown', { pointerId: 1, bubbles: true }));
+    assert.equal(breaks, 1);
+    viewport.dispatchEvent(new browser.window.Event('resize'));
+    await new Promise((r) => setTimeout(r, BREAK_REPEAT_MS + 40));
+    assert.equal(breaks, 1);
+    assert.equal(button.classList.contains('active'), false);
+  } finally { controls.dispose(); browser.close(); }
 });

@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createFakeBrowser } from './helpers/fakeBrowser.ts';
 
-// Сенсорный путь: джойстик, свайп камеры, тап — поставить, удержание — сломать, кнопка прыжка/полёта.
-test('сенсорное управление: джойстик, камера, тап/удержание, прыжок и полёт', async () => {
+// Сенсорный путь по умолчанию: джойстик, безопасный обзор, отдельные кнопки блоков и прыжка/полёта.
+test('сенсорное управление: джойстик, камера, кнопки блоков, прыжок и полёт', async () => {
   const browser = createFakeBrowser();
   const { window: win } = browser;
   // Делаем устройство «сенсорным» до загрузки модулей игры
@@ -20,6 +20,8 @@ test('сенсорное управление: джойстик, камера, �
 
     const settings = new Settings();
     settings.set('renderDistance', 2);
+    let lockRequests = 0;
+    win.HTMLCanvasElement.prototype.requestPointerLock = () => { lockRequests++; return Promise.resolve(); };
     const app = win.document.getElementById('app')!;
     const game = new Game(app, settings) as unknown as {
       state: string;
@@ -30,10 +32,15 @@ test('сенсорное управление: джойстик, камера, �
       selectedSlot: number;
       input: { moveZ: number; jump: boolean };
       startWorld(seed: string): void;
+      pause(): void;
+      resume(): void;
+      openInventory(): void;
+      closeInventory(): void;
     };
     game.startWorld('7');
     for (let i = 0; i < 300 && game.state === 'loading'; i++) await browser.frames(1);
     assert.equal(game.state, 'playing');
+    assert.equal(lockRequests, 0, 'на сенсорном устройстве запуск не захватывает мышь');
 
     const controls = win.document.querySelector('.touch-controls')!;
     assert.ok(!controls.classList.contains('hidden'), 'сенсорные элементы видны на тач-устройстве');
@@ -64,7 +71,7 @@ test('сенсорное управление: джойстик, камера, �
     pe('pointerup', 2, 820, 300);
     assert.ok(Math.abs(p.yaw - yaw0) > 0.1, `камера повернулась (dyaw=${p.yaw - yaw0})`);
 
-    // --- Тап ставит блок перед игроком ---
+    // --- Блоки ставятся только отдельной кнопкой, не касанием зоны обзора ---
     p.pitch = -0.8;
     await browser.frames(2);
     const hit = game.currentHit!;
@@ -74,16 +81,22 @@ test('сенсорное управление: джойстик, камера, �
       : { x: hit.x + hit.nx, y: hit.y + hit.ny, z: hit.z + hit.nz };
     pe('pointerdown', 3, 700, 300);
     pe('pointerup', 3, 700, 300);
-    assert.equal(game.world!.getBlock(target.x, target.y, target.z), game.hotbar[game.selectedSlot], 'тап поставил блок');
+    assert.notEqual(game.world!.getBlock(target.x, target.y, target.z), game.hotbar[game.selectedSlot], 'тап обзора не ставит блок');
+    const actionButton = (selector: string, type: string, id: number) =>
+      win.document.querySelector(selector)!.dispatchEvent(new win.PointerEvent(type, {
+        pointerId: id, pointerType: 'touch', bubbles: true,
+      }));
+    actionButton('.place-btn', 'pointerdown', 3);
+    actionButton('.place-btn', 'pointerup', 3);
+    assert.equal(game.world!.getBlock(target.x, target.y, target.z), game.hotbar[game.selectedSlot], 'кнопка поставила блок');
 
     // --- Удержание ломает блок ---
     await browser.frames(2);
     const hit2 = game.currentHit!;
     assert.ok(hit2);
-    pe('pointerdown', 4, 700, 300);
-    await new Promise((r) => setTimeout(r, 320));
-    pe('pointerup', 4, 700, 300);
-    assert.equal(game.world!.getBlock(hit2.x, hit2.y, hit2.z), AIR, 'удержание сломало блок');
+    actionButton('.break-btn', 'pointerdown', 4);
+    actionButton('.break-btn', 'pointerup', 4);
+    assert.equal(game.world!.getBlock(hit2.x, hit2.y, hit2.z), AIR, 'кнопка сломала блок');
 
     // --- Кнопка прыжка и полёт двойным нажатием ---
     const jump = win.document.querySelector('.jump-btn')!;
@@ -98,6 +111,11 @@ test('сенсорное управление: джойстик, камера, �
     assert.equal(p.flying, true, 'двойное нажатие прыжка включает полёт');
     assert.ok(!win.document.querySelector('.sneak-btn')!.classList.contains('hidden'), 'в полёте есть кнопка снижения');
 
+    game.pause();
+    game.resume();
+    game.openInventory();
+    game.closeInventory();
+    assert.equal(lockRequests, 0, 'возврат из паузы и инвентаря не захватывает мышь');
     assert.deepEqual(errors, []);
   } finally {
     browser.close();

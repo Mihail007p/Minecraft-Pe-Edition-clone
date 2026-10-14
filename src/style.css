@@ -31,7 +31,7 @@ body {
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-tap-highlight-color: transparent;
-  touch-action: none;
+  touch-action: auto;
 }
 
 #app {
@@ -47,6 +47,7 @@ body {
   height: 100% !important;
   display: block;
   image-rendering: pixelated;
+  touch-action: none;
 }
 
 .hidden {
@@ -138,7 +139,8 @@ button {
   width: 100%;
   margin: 6px 0 2px;
   accent-color: #5f9f3a;
-  height: 24px;
+  height: 32px;
+  touch-action: none;
 }
 
 /* ---------- Оверлеи и панели ---------- */
@@ -163,6 +165,8 @@ button {
   width: min(360px, 100%);
   max-height: 100%;
   overflow: auto;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
   padding: 18px 20px;
   text-align: center;
 }
@@ -337,7 +341,7 @@ button {
   position: absolute;
   pointer-events: auto;
   width: 44px;
-  height: 36px;
+  height: 44px;
   background: #0007;
   color: #fff;
   border: 2px solid #ffffff55;
@@ -364,17 +368,22 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: min(450px, calc(100% - 16px - var(--safe-left) - var(--safe-right)));
   pointer-events: auto;
 }
 
 .hotbar {
   display: flex;
+  flex: 1;
+  min-width: 0;
   background: #00000088;
   border: 2px solid #000;
   box-shadow: 0 0 0 1px #ffffff55;
 }
 
 .slot {
+  flex: 1;
+  min-width: 0;
   width: 44px;
   height: 44px;
   display: flex;
@@ -393,8 +402,8 @@ button {
 }
 
 .slot-icon {
-  width: 34px;
-  height: 34px;
+  width: min(34px, 100%);
+  height: auto;
   image-rendering: pixelated;
   pointer-events: none;
 }
@@ -405,23 +414,6 @@ button {
   height: 48px;
   font-size: 18px;
   letter-spacing: -1px;
-}
-
-@media (max-width: 520px) {
-  .slot {
-    width: 36px;
-    height: 36px;
-  }
-
-  .slot-icon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .inv-btn {
-    width: 38px;
-    height: 40px;
-  }
 }
 
 .underwater {
@@ -500,6 +492,7 @@ button {
 
 /* ---------- Сенсорное управление ---------- */
 .touch-controls {
+  --control-size: clamp(48px, min(var(--touch-button-size, 64px), 18vw, 19vh), 80px);
   position: absolute;
   inset: 0;
   z-index: 5;
@@ -534,43 +527,69 @@ button {
   transform: translate(-50%, -50%);
 }
 
-.touch-btn {
+.joy-home {
   position: absolute;
-  width: 72px;
-  height: 72px;
+  left: calc(24px + var(--safe-left));
+  bottom: calc(82px + var(--safe-bottom));
+  width: 112px;
+  height: 112px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 2px solid #ffffff66;
   border-radius: 50%;
-  background: #ffffff33;
+  background: #0003;
+  color: #ffffffbb;
+  font-size: 12px;
+  text-shadow: 1px 1px #000;
+  pointer-events: none;
+}
+
+.joy-home span:first-child { font-size: 32px; }
+.moving .joy-home { visibility: hidden; }
+
+.touch-actions {
+  position: absolute;
+  right: calc(18px + var(--safe-right));
+  bottom: calc(76px + var(--safe-bottom));
+  display: grid;
+  grid-template-columns: repeat(2, var(--control-size));
+  grid-template-rows: repeat(2, var(--control-size));
+  gap: 10px;
+  pointer-events: none;
+}
+
+.touch-btn {
+  width: var(--control-size);
+  height: var(--control-size);
+  padding: 0;
+  border-radius: 18px;
+  background: #0005;
   border: 2px solid #ffffff88;
   color: #fff;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  text-shadow: 1px 1px #000;
   touch-action: none;
+  pointer-events: auto;
   cursor: pointer;
 }
 
-.touch-btn.active {
-  background: #ffffff77;
-}
-
-.jump-btn {
-  right: calc(28px + var(--safe-right));
-  bottom: calc(96px + var(--safe-bottom));
-}
-
-.sneak-btn {
-  right: calc(112px + var(--safe-right));
-  bottom: calc(76px + var(--safe-bottom));
-  width: 60px;
-  height: 60px;
-}
+.touch-btn.active { background: #ffffff77; border-color: #fff; }
+.touch-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.break-btn { grid-area: 1 / 1; }
+.place-btn { grid-area: 1 / 2; }
+.jump-btn { grid-area: 2 / 2; }
+.sneak-btn { grid-area: 2 / 1; }
+.control-help { font-size: 13px; line-height: 1.5; color: #ddd; }
 
 @media (max-height: 420px) {
-  .jump-btn {
-    bottom: calc(70px + var(--safe-bottom));
-  }
-
-  .sneak-btn {
-    bottom: calc(56px + var(--safe-bottom));
-  }
+  .touch-actions { bottom: calc(68px + var(--safe-bottom)); }
+  .joy-home { bottom: calc(68px + var(--safe-bottom)); width: 96px; height: 96px; }
 }
