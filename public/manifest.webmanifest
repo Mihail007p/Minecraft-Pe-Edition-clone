@@ -1,0 +1,17 @@
+{
+  "name": "Minecraft PE Clone",
+  "short_name": "MC PE Clone",
+  "description": "Воксельная песочница в духе Minecraft Pocket Edition — прямо в браузере телефона.",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#3b7d2a",
+  "theme_color": "#3b7d2a",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
