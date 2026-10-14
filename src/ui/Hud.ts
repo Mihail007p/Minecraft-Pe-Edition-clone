@@ -1,3 +1,4 @@
+import type { GameMode, Survival } from '../player/Survival.ts';
 import { BLOCKS } from '../world/Blocks.ts';
 import { blockIconURL } from '../render/BlockIcons.ts';
 import { el, show } from './dom.ts';
@@ -13,6 +14,12 @@ export class Hud {
   private toastEl: HTMLElement;
   private toastTimer: number | null = null;
   private selected = 0;
+  private vitalsEl: HTMLElement;
+  private eatBtn: HTMLButtonElement;
+  private miningEl: HTMLProgressElement;
+  private targetEl: HTMLElement;
+  private counts: HTMLElement[] = [];
+  onEat: (() => void) | null = null;
 
   onSelectSlot: ((index: number) => void) | null = null;
   onOpenInventory: (() => void) | null = null;
@@ -25,6 +32,8 @@ export class Hud {
     for (let i = 0; i < 9; i++) {
       const img = el('img', { class: 'slot-icon', alt: '', draggable: 'false' });
       const slot = el('div', { class: 'slot', [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onSelectSlot?.(i); } }, [img]);
+      const count = el('span', { class: 'item-count' });
+      slot.appendChild(count); this.counts.push(count);
       hotbar.appendChild(slot);
       this.slotsEl.push(slot);
       this.slotImgs.push(img as HTMLImageElement);
@@ -43,8 +52,13 @@ export class Hud {
     this.flyEl = el('div', { class: 'fly-indicator hidden' }, ['Полёт']);
     this.toastEl = el('div', { class: 'toast hidden' });
 
+    this.vitalsEl = el('div', { class: 'vitals' });
+    this.eatBtn = el('button', { class: 'mc-btn eat-btn', type: 'button', click: () => this.onEat?.() }, ['Есть · R']);
+    this.miningEl = el('progress', { class: 'mining-progress hidden', max: '1', value: '0', 'aria-label': 'Добыча блока' });
+    this.targetEl = el('div', { class: 'target-label' });
     this.root = el('div', { class: 'hud hidden' }, [
       this.underwaterEl,
+      this.vitalsEl, this.eatBtn, this.miningEl, this.targetEl,
       el('div', { class: 'crosshair' }),
       this.debugEl,
       this.flyEl,
@@ -54,6 +68,25 @@ export class Hud {
     ]);
     parent.appendChild(this.root);
   }
+
+  setSurvival(mode: GameMode, stats: Survival, slots: readonly number[]): void {
+    const survival = mode === 'survival';
+    this.vitalsEl.textContent = survival
+      ? `♥ ${Math.ceil(stats.health)}/20 · Сытость ${Math.ceil(stats.hunger)}/20${stats.air < 10 ? `   ◌ ${Math.ceil(stats.air)}` : ''}`
+      : 'Творческий режим';
+    this.vitalsEl.classList.toggle('danger', survival && stats.health <= 6);
+    show(this.eatBtn, survival);
+    this.eatBtn.textContent = `Есть (${stats.food}) · R`;
+    this.eatBtn.disabled = stats.food < 1 || stats.hunger >= 20;
+    this.counts.forEach((el, i) => { el.textContent = survival && slots[i] ? String(stats.count(slots[i])) : ''; });
+  }
+
+  setMining(progress: number): void {
+    this.miningEl.value = progress;
+    show(this.miningEl, progress > 0);
+  }
+
+  setTarget(text: string): void { this.targetEl.textContent = text; }
 
   setVisible(visible: boolean): void {
     show(this.root, visible);
