@@ -237,7 +237,7 @@ export class Game {
     }
     player.yaw = bestYaw;
     this.setState('playing');
-    this.keyboard.requestLock();
+    if (!IS_TOUCH_DEVICE) this.keyboard.requestLock();
   }
 
   pause(): void {
@@ -250,7 +250,7 @@ export class Game {
     if (this.state !== 'paused') return;
     this.setState('playing');
     this.lastFrame = performance.now();
-    this.keyboard.requestLock();
+    if (!IS_TOUCH_DEVICE) this.keyboard.requestLock();
   }
 
   quitToMenu(): void {
@@ -283,7 +283,7 @@ export class Game {
     this.inventory.close();
     if (this.state === 'playing') {
       this.touch.setEnabled(IS_TOUCH_DEVICE);
-      this.keyboard.requestLock();
+      if (!IS_TOUCH_DEVICE) this.keyboard.requestLock();
     }
   }
 
@@ -313,6 +313,7 @@ export class Game {
   // ------------------------------------------------------------------ настройки
 
   private applySettings(s: GameSettings): void {
+    this.touch.configure(s);
     this.camera.fov = s.fov;
     this.camera.updateProjectionMatrix();
     this.sky.setRenderDistance(s.renderDistance);

@@ -1,12 +1,14 @@
 # Сборка и публикация игры на GitHub Pages.
-# Запускается при пуше в main или в рабочую ветку разработки, а также вручную.
+# Проверяет PR в main; после слияния публикует main. Также запускается вручную.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main
-      - arena/4f69b474-minecraft-pe-edition-clone
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:

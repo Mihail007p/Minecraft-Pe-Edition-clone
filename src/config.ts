@@ -44,6 +44,8 @@ export interface GameSettings {
   autoJump: boolean;
   showCoords: boolean;
   invertY: boolean;
+  touchGestures: boolean; // тап/удержание на зоне обзора вместо отдельных кнопок
+  touchButtonSize: number; // диаметр сенсорных кнопок в CSS-пикселях
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -53,6 +55,8 @@ export const DEFAULT_SETTINGS: GameSettings = {
   autoJump: true,
   showCoords: true,
   invertY: false,
+  touchGestures: false,
+  touchButtonSize: 64,
 };
 
 export const SETTINGS_STORAGE_KEY = 'mcpe-clone.settings.v1';

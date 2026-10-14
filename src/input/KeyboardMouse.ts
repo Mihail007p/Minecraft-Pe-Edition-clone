@@ -121,6 +121,9 @@ export class KeyboardMouse {
 
   private onMouseDown = (e: MouseEvent): void => {
     if (!this.enabled) return;
+    // Android может породить совместимый mousedown после касания. Это не мышь:
+    // pointer lock на тач-устройстве способен обнулить clientX/clientY касаний.
+    if ((e as MouseEvent & { sourceCapabilities?: { firesTouchEvents: boolean } }).sourceCapabilities?.firesTouchEvents) return;
     // Клики по кнопкам интерфейса — не игровые действия
     if ((e.target as HTMLElement).closest('button, input, .panel, .menu-box')) return;
     if (!this.isLocked()) {
