@@ -2,7 +2,7 @@
 // Всё, что влияет на баланс/производительность, собрано здесь, чтобы было удобно подстраивать.
 
 export const GAME_TITLE = 'Minecraft PE Clone';
-export const GAME_VERSION = '0.1.0';
+export const GAME_VERSION = '0.2.0';
 
 // --- Мир ---
 export const CHUNK_SIZE = 16; // ширина/глубина чанка в блоках
@@ -27,7 +27,7 @@ export const REACH_DISTANCE = 5.5; // дальность взаимодейст�
 
 // --- Управление ---
 export const HOLD_TO_BREAK_MS = 220; // удержание тача, после которого начинается ломание
-export const BREAK_REPEAT_MS = 260; // интервал ломания при удержании (креатив)
+export const BREAK_REPEAT_MS = 260; // интервал действия при удержании (добыча / удар)
 export const TAP_MAX_MOVE_PX = 12; // максимальное смещение пальца, чтобы это считалось «тапом»
 export const DOUBLE_TAP_MS = 300; // окно для двойного нажатия прыжка (полёт)
 

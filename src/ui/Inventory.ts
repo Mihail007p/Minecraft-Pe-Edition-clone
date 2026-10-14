@@ -2,12 +2,12 @@ import { CREATIVE_BLOCKS } from '../world/Blocks.ts';
 import { blockIconURL } from '../render/BlockIcons.ts';
 import { button, el, show } from './dom.ts';
 
-/** Креативный инвентарь: сетка всех блоков, тап кладёт блок в выбранный слот хотбара. */
+/** Каталог творческого режима или добытые блоки; хотбар ссылается на общий запас. */
 export class Inventory {
   readonly root: HTMLElement;
   onPick: ((blockId: number) => void) | null = null;
   onClose: (() => void) | null = null;
-  private built = false;
+
   private grid: HTMLElement;
 
   constructor(parent: HTMLElement) {
@@ -28,8 +28,8 @@ export class Inventory {
     parent.appendChild(this.root);
   }
 
-  open(): void {
-    if (!this.built) this.build();
+  open(counts?: ReadonlyMap<number, number>): void {
+    this.build(counts);
     show(this.root, true);
   }
 
@@ -41,14 +41,19 @@ export class Inventory {
     return !this.root.classList.contains('hidden');
   }
 
-  private build(): void {
-    this.built = true;
+  private build(counts?: ReadonlyMap<number, number>): void {
+    this.grid.replaceChildren();
+    this.root.querySelector('.panel-title')!.textContent = counts ? 'Добытые блоки' : 'Все блоки';
+    if (counts && ![...counts.values()].some(n => n > 0)) {
+      this.grid.append(el('p', { class: 'hint' }, ['Пока пусто. Удерживайте «Сломать» или ЛКМ, чтобы добыть блок.']));
+    }
     for (const def of CREATIVE_BLOCKS) {
+      if (counts && !counts.get(def.id)) continue;
       const img = el('img', { src: blockIconURL(def.id), alt: def.name, draggable: 'false' });
       const cell = el('button', {
         class: 'inv-cell', type: 'button', title: def.name,
         click: () => this.onPick?.(def.id),
-      }, [img]);
+      }, counts ? [img, el('span', { class: 'item-count' }, [String(counts.get(def.id))])] : [img]);
       this.grid.appendChild(cell);
     }
   }
