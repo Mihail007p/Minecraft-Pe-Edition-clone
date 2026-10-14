@@ -40,6 +40,8 @@ jobs:
           path: dist
 
   deploy:
+    # Публикуем только с main: окружение github-pages разрешает деплой лишь с этой ветки.
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

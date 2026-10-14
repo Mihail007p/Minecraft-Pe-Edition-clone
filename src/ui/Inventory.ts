@@ -22,7 +22,7 @@ export class Inventory {
         el('div', { class: 'hint' }, ['Нажмите на блок, чтобы положить его в выбранный слот хотбара']),
       ]),
     ]);
-    this.root.addEventListener('pointerdown', (e) => {
+    this.root.addEventListener(typeof window.PointerEvent === 'function' ? 'pointerdown' : 'click', (e) => {
       if (e.target === this.root) this.onClose?.();
     });
     parent.appendChild(this.root);

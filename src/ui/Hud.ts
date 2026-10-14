@@ -19,21 +19,23 @@ export class Hud {
   onPause: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
+    // Без Pointer Events оставляем стандартный click (включая тап) для Android WebView.
+    const press = typeof window.PointerEvent === 'function' ? 'pointerdown' : 'click';
     const hotbar = el('div', { class: 'hotbar' });
     for (let i = 0; i < 9; i++) {
       const img = el('img', { class: 'slot-icon', alt: '', draggable: 'false' });
-      const slot = el('div', { class: 'slot', pointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.onSelectSlot?.(i); } }, [img]);
+      const slot = el('div', { class: 'slot', [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onSelectSlot?.(i); } }, [img]);
       hotbar.appendChild(slot);
       this.slotsEl.push(slot);
       this.slotImgs.push(img as HTMLImageElement);
     }
     const invBtn = el('button', {
       class: 'icon-btn inv-btn', type: 'button', 'aria-label': 'Инвентарь',
-      pointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.onOpenInventory?.(); },
+      [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onOpenInventory?.(); },
     }, ['•••']);
     const pauseBtn = el('button', {
       class: 'icon-btn pause-btn', type: 'button', 'aria-label': 'Пауза',
-      pointerdown: (e) => { e.preventDefault(); e.stopPropagation(); this.onPause?.(); },
+      [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onPause?.(); },
     }, ['❚❚']);
 
     this.debugEl = el('div', { class: 'debug' });

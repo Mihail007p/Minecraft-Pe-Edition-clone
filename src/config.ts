@@ -59,4 +59,5 @@ export const SETTINGS_STORAGE_KEY = 'mcpe-clone.settings.v1';
 
 export const IS_TOUCH_DEVICE =
   typeof window !== 'undefined' &&
-  ('ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0);
+  ('ontouchstart' in window || (navigator.maxTouchPoints ?? 0) > 0 ||
+    window.matchMedia?.('(any-pointer: coarse)').matches === true);

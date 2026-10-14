@@ -485,6 +485,7 @@ export class Game {
   /** Полное освобождение ресурсов (для горячей перезагрузки). */
   dispose(): void {
     this.disposeWorld();
+    this.touch.dispose();
     this.sky.dispose();
     this.materials.dispose();
     this.atlas.dispose();
