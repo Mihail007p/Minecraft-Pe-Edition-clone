@@ -1,4 +1,7 @@
-import { BLOCKS, COBBLESTONE, DIRT, GRASS, STONE, WATER } from '../world/Blocks.ts';
+import { BLOCKS, COAL_ORE, COBBLESTONE, DIRT, GRASS, STONE, WATER } from '../world/Blocks.ts';
+
+import { Crafting } from '../crafting/Crafting.ts';
+import { insert, itemId } from '../crafting/Items.ts';
 
 export type GameMode = 'creative' | 'survival';
 
@@ -8,23 +11,30 @@ export class Survival {
   hunger = 20;
   air = 10;
   food = 0;
-  readonly blocks = new Map<number, number>();
+  readonly inventory: Crafting;
+  constructor(inventory = new Crafting()) { this.inventory = inventory; }
+  /** Снимок общего запаса; сами предметы хранятся только в слотах. */
+  get blocks(): ReadonlyMap<number, number> {
+    const counts = new Map<number, number>();
+    for (const s of this.inventory.slots) if (s) counts.set(s.id, (counts.get(s.id) ?? 0) + s.count);
+    return counts;
+  }
   private recovery = 0;
   private starvation = 0;
   private drowning = 0;
 
   get dead(): boolean { return this.health <= 0; }
   get canSprint(): boolean { return this.hunger > 6; }
-  count(id: number): number { return this.blocks.get(id) ?? 0; }
+  count(id: number): number { return this.inventory.slots.reduce((n, s) => n + (s?.id === id ? s.count : 0), 0); }
   collect(id: number): number {
     if (!BLOCKS[id]?.breakable || id === WATER) return 0;
-    const drop = id === GRASS ? DIRT : id === STONE ? COBBLESTONE : id;
-    this.blocks.set(drop, this.count(drop) + 1);
-    return drop;
+    const drop = id === GRASS ? DIRT : id === STONE ? COBBLESTONE : id === COAL_ORE ? itemId('coal') : id;
+    return insert(this.inventory.slots, { id: drop, count: 1 }) === 0 ? drop : 0;
   }
   consumeBlock(id: number): boolean {
-    if (this.count(id) < 1) return false;
-    this.blocks.set(id, this.count(id) - 1);
+    const i = this.inventory.slots.findIndex(s => s?.id === id);
+    if (i < 0) return false;
+    if (--this.inventory.slots[i]!.count === 0) this.inventory.slots[i] = null;
     return true;
   }
   damage(amount: number): void { this.health = Math.max(0, this.health - Math.max(0, amount)); }

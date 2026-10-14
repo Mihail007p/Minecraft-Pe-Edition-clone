@@ -138,6 +138,7 @@ export class KeyboardMouse {
       this.breakTimer = window.setInterval(() => this.actions.breakBlock(), BREAK_REPEAT_MS);
     } else if (e.button === 2) {
       this.actions.placeBlock();
+      if (!this.enabled) return;
       this.clearPlace();
       this.placeTimer = window.setInterval(() => this.actions.placeBlock(), BREAK_REPEAT_MS);
     }

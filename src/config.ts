@@ -2,7 +2,7 @@
 // Всё, что влияет на баланс/производительность, собрано здесь, чтобы было удобно подстраивать.
 
 export const GAME_TITLE = 'Minecraft PE Clone';
-export const GAME_VERSION = '0.2.0';
+export const GAME_VERSION = '0.3.0';
 
 // --- Мир ---
 export const CHUNK_SIZE = 16; // ширина/глубина чанка в блоках

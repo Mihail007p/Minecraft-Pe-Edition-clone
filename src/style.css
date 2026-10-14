@@ -594,6 +594,64 @@ button {
   .joy-home { bottom: calc(68px + var(--safe-bottom)); width: 96px; height: 96px; }
 }
 
+/* ---------- Создание и книга рецептов ---------- */
+.inventory { align-items: center; }
+.crafting-panel { width: min(1000px, 100%); max-height: 94%; padding: 12px; }
+.inventory-content { overflow-y: auto; min-height: 0; touch-action: pan-y; }
+.inventory-content > .inv-grid { max-height: 60vh; }
+.inventory-tabs, .recipe-filters, .craft-actions { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.inventory-tabs .mc-btn { flex: 1; min-height: 38px; }
+.inventory-tabs .active { background: #5b7c40; color: #fff; }
+.recipe-filters { align-items: center; }
+.recipe-search { flex: 1; min-width: 120px; width: auto; margin: 0; }
+.recipe-category { min-height: 40px; background: #eee; color: #333; border: 2px solid #555; font: inherit; max-width: 100%; }
+.available-filter { font-size: 13px; white-space: nowrap; }
+.available-filter input { width: 18px; height: 18px; vertical-align: middle; }
+.craft-layout { display: grid; grid-template-columns: minmax(190px, 0.8fr) minmax(280px, 1.2fr); gap: 16px; }
+.craft-layout h3 { margin: 4px 0 10px; font-size: 14px; }
+.recipe-list { overflow-y: auto; max-height: 52vh; display: grid; gap: 4px; align-content: start; touch-action: pan-y; }
+.recipe-card { display: flex; align-items: center; gap: 8px; text-align: left; padding: 5px; min-height: 50px; border: 2px solid #707070; background: #b5b5b5; color: #292929; cursor: pointer; font: inherit; font-size: 13px; }
+.recipe-card small { display: block; font-size: 11px; margin-top: 4px; color: #454545; }
+.recipe-card.craftable { background: #c5d6ae; border-color: #657b4a; }
+.recipe-card.chosen { outline: 2px solid #f8f6d6; outline-offset: -4px; }
+.recipe-icon { position: relative; display: block; flex-shrink: 0; width: 38px; height: 38px; }
+.recipe-icon img, .craft-slot img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; pointer-events: none; }
+.craft-row { display: flex; gap: 14px; align-items: center; justify-content: center; margin: 8px 0 14px; }
+.craft-grid, .recipe-pattern { display: grid; grid-template-columns: repeat(var(--grid-size), 44px); gap: 3px; }
+.craft-slot { position: relative; display: inline-block; width: 100%; min-width: 0; aspect-ratio: 1; padding: 4px; background: #8b8b8b; border: 2px solid #373737; box-shadow: inset 2px 2px #666, inset -2px -2px #eee; color: white; cursor: pointer; }
+button.craft-slot:hover, button.craft-slot:focus-visible { background: #b2b2b2; }
+.craft-output { width: 56px; border: 3px solid #526b39; background: #a9b991; }
+.craft-output:disabled { border-color: #777; background: #929292; cursor: default; }
+.craft-arrow { font-size: 30px; color: #626262; }
+.stack-count { position: absolute; right: 2px; bottom: 0; color: #fff; font-size: 15px; line-height: 1.2; font-weight: 700; text-shadow: 1px 2px #222, -1px -1px #222; pointer-events: none; }
+.slot, .inv-cell { position: relative; }
+.bag-grid { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+.bag-hotbar { margin-top: 6px; border-bottom-color: #687f40; }
+.cursor-stack { display: flex; align-items: center; gap: 8px; font-size: 12px; margin: 8px 0 12px; min-height: 40px; }
+.cursor-stack .craft-slot { width: 36px; flex-shrink: 0; cursor: default; }
+.craft-actions .mc-btn { flex: 1; min-height: 36px; font-size: 12px; }
+.craft-status { font-size: 12px; line-height: 1.5; min-height: 20px; margin-top: 8px; }
+.recipe-preview { border-top: 2px solid #888; margin-top: 12px; padding-top: 10px; }
+.recipe-preview .craft-slot { cursor: default; }
+.crafting-panel button:focus-visible { outline: 3px solid #243e18; outline-offset: -3px; }
+@media (max-width: 620px) {
+  .crafting-panel { padding: 8px; }
+  .craft-layout { grid-template-columns: 1fr; }
+  .craft-workspace { grid-row: 1; }
+  .recipe-list { max-height: 250px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .bag-grid { gap: 2px; }
+  .craft-slot { padding: 2px; }
+  .recipe-card { font-size: 11px; }
+  .recipe-icon { width: 30px; height: 30px; }
+  .recipe-filters { gap: 5px; }
+  .recipe-category { font-size: 12px; max-width: 150px; }
+}
+@media (max-height: 520px) and (min-width: 621px) {
+  .crafting-panel { max-height: 98%; padding: 6px 10px; }
+  .panel-header { margin-bottom: 4px; }
+  .inventory-tabs, .recipe-filters { margin-bottom: 4px; }
+  .recipe-list { max-height: 48vh; }
+}
 /* Survival UI stays above the touch surface and clear of the hotbar. */
 .mode-select { width: 100%; font-size: 14px; color-scheme: dark; }
 .vitals { position: absolute; top: calc(10px + var(--safe-top)); left: 50%; transform: translateX(-50%); padding: 7px 10px; background: #182019bb; color: #fff0dd; font-size: 14px; white-space: nowrap; text-shadow: 1px 2px #000; border-bottom: 2px solid #6d925c; }
@@ -606,3 +664,6 @@ button {
 .target-label { position: absolute; left: 50%; top: calc(50% + 16px); transform: translateX(-50%); color: white; font-size: 12px; text-shadow: 1px 1px 2px #000; white-space: nowrap; }
 .death-menu { background: #3b0808aa; }
 @media (max-width: 600px) { .debug { top: calc(102px + var(--safe-top)); font-size: 10px; } }
+.recipe-search { min-height: 40px; padding: 7px 10px; border: 2px solid #555; background: #eee; color: #222; font: inherit; font-size: 14px; user-select: text; }
+.cursor-stack { flex-wrap: wrap; }
+.cursor-stack .mc-btn { min-height: 32px; font-size: 11px; margin-left: auto; }

@@ -572,6 +572,36 @@ for (const [name, col] of Object.entries(WOOL_COLORS)) {
   };
 }
 
+generators.chest = (t, rng) => {
+  generators.planks(t, rng);
+  t.rect(0, 0, 16, 1, c(74, 48, 25));
+  t.rect(0, 5, 16, 2, c(63, 42, 21));
+  t.rect(0, 15, 16, 1, c(74, 48, 25));
+  t.rect(0, 0, 1, 16, c(74, 48, 25));
+  t.rect(15, 0, 1, 16, c(74, 48, 25));
+  t.rect(7, 5, 2, 4, c(205, 202, 174));
+};
+generators.furnace_side = (t, rng) => {
+  generators.stone(t, rng);
+  t.rect(3, 3, 10, 3, c(44, 44, 44));
+  t.rect(3, 9, 10, 5, c(38, 38, 38));
+  t.rect(4, 10, 8, 1, c(76, 76, 76));
+};
+
+// Самостоятельно нарисованные текстуры блоков из рецептов.
+for (const [name, col] of Object.entries({
+  clay: c(157, 164, 179), coal_block: c(35, 35, 35), iron_block: c(207, 210, 213),
+  gold_block: c(239, 197, 47), diamond_block: c(65, 210, 197), emerald_block: c(38, 184, 86),
+  redstone_block: c(172, 28, 20), lapis_block: c(33, 69, 155), quartz_block: c(224, 218, 202),
+})) {
+  generators[name] = (t, rng) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const edge = name === 'clay' ? 0 : x === 0 || y === 0 ? 18 : x === 15 || y === 15 ? -30 : 0;
+      t.set(x, y, add(col, edge + (rng() - 0.5) * 12));
+    }
+  };
+}
+
 /** Имена всех текстур — порядок задаёт индексы слоёв в массиве текстур. */
 export const TEXTURE_NAMES: readonly string[] = Object.keys(generators);
 

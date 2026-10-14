@@ -21,11 +21,13 @@ import { createBlockTextureArray } from '../render/TextureAtlas.ts';
 import { Hud } from '../ui/Hud.ts';
 import { Inventory } from '../ui/Inventory.ts';
 import { LoadingScreen, MainMenu, PauseMenu, SettingsPanel } from '../ui/Menus.ts';
-import { AIR, BLOCKS, BLOCK_REPLACEABLE, DEFAULT_HOTBAR } from '../world/Blocks.ts';
+import { AIR, BLOCKS, BLOCK_REPLACEABLE, CRAFTING_TABLE, DEFAULT_HOTBAR } from '../world/Blocks.ts';
 import { hashString } from '../world/Noise.ts';
 import { raycastBlocks, type RaycastHit } from '../world/Raycast.ts';
 import { World } from '../world/World.ts';
 import { BIOME_NAMES } from '../world/WorldGen.ts';
+import { Crafting } from '../crafting/Crafting.ts';
+import { ITEM_BY_ID } from '../crafting/Items.ts';
 import type { Settings } from './Settings.ts';
 
 type GameState = 'menu' | 'loading' | 'playing' | 'paused' | 'dead';
@@ -45,7 +47,8 @@ export class Game {
   private selectionBox: LineSegments;
 
   private mode: GameMode = 'creative';
-  private survival = new Survival();
+  private crafting = new Crafting();
+  private survival = new Survival(this.crafting);
   private mining = new Mining();
   private animals: Animals | null = null;
   private targetAnimal: Animal | null = null;
@@ -70,7 +73,7 @@ export class Game {
   private settingsReturnTo: GameState = 'menu';
 
   private state: GameState = 'menu';
-  private hotbar: number[] = [...DEFAULT_HOTBAR];
+  private get hotbar(): number[] { return this.crafting.slots.slice(0, 9).map(s => s?.id ?? AIR); }
   private selectedSlot = 0;
 
   private lastFrame = performance.now();
@@ -112,7 +115,7 @@ export class Game {
 
     // --- UI ---
     this.hud = new Hud(container);
-    this.inventory = new Inventory(container);
+    this.inventory = new Inventory(container, this.crafting);
     this.mainMenu = new MainMenu(container);
     this.pauseMenu = new PauseMenu(container);
     this.settingsPanel = new SettingsPanel(container, settings);
@@ -136,7 +139,7 @@ export class Game {
       selectHotbar: (i) => this.selectSlot(i),
       scrollHotbar: (d) => this.selectSlot((this.selectedSlot + d + 9) % 9),
       toggleFly: () => this.toggleFly(),
-      togglePause: () => (this.state === 'playing' ? this.pause() : this.state === 'paused' ? this.resume() : undefined),
+      togglePause: () => (this.inventory.isOpen ? this.closeInventory() : this.state === 'playing' ? this.pause() : this.state === 'paused' ? this.resume() : undefined),
       toggleInventory: () => (this.inventory.isOpen ? this.closeInventory() : this.openInventory()),
     };
     this.touch = new TouchControls(container, this.input, actions);
@@ -151,13 +154,14 @@ export class Game {
     this.hud.onEat = () => this.eat();
     this.hud.onPause = () => this.pause();
     this.inventory.onPick = (id) => {
-      if (this.mode === 'survival' && this.survival.count(id) < 1) return;
-      this.hotbar[this.selectedSlot] = id;
-      this.hud.setHotbar(this.hotbar);
+      if (this.mode !== 'creative') return;
+      this.crafting.slots[this.selectedSlot] = { id, count: ITEM_BY_ID.get(id)!.maxStack };
+      this.syncInventory();
       this.hud.setSelected(this.selectedSlot, id);
       this.closeInventory();
     };
     this.inventory.onClose = () => this.closeInventory();
+    this.inventory.onChange = () => this.syncInventory();
 
     this.mainMenu.onPlay = (seed, mode) => this.startWorld(seed, mode);
     this.mainMenu.onSettings = () => this.openSettings('menu');
@@ -168,7 +172,7 @@ export class Game {
 
     settings.onChange((s) => this.applySettings(s));
     this.applySettings(settings.get());
-    this.hud.setHotbar(this.hotbar);
+    this.syncInventory();
     this.hud.setSelected(0, this.hotbar[0]);
 
     window.addEventListener('resize', () => this.onResize());
@@ -203,7 +207,7 @@ export class Game {
   startWorld(seedText: string, mode: GameMode = 'creative'): void {
     this.disposeWorld();
     this.mode = mode;
-    this.survival = new Survival();
+    this.survival = new Survival(this.crafting);
     this.mining.reset();
     this.accumulator = 0;
     this.attackCooldown = 0;
@@ -220,9 +224,9 @@ export class Game {
     this.player.teleport(spawn.x, spawn.y, spawn.z);
     this.player.yaw = 0;
     this.player.pitch = -0.1;
-    this.hotbar = this.mode === 'creative' ? [...DEFAULT_HOTBAR] : Array(9).fill(AIR);
+    this.crafting.reset(this.mode === 'creative' ? DEFAULT_HOTBAR : []);
     this.selectedSlot = 0;
-    this.hud.setHotbar(this.hotbar);
+    this.syncInventory();
     this.hud.setSelected(0, this.hotbar[0]);
     this.hud.setSurvival(this.mode, this.survival, this.hotbar);
     this.hud.setMining(0);
@@ -280,7 +284,7 @@ export class Game {
 
   pause(): void {
     if (this.state !== 'playing') return;
-    this.closeInventory();
+    if (!this.closeInventory()) return;
     this.setState('paused');
   }
 
@@ -309,22 +313,29 @@ export class Game {
     else this.mainMenu.setVisible(true);
   }
 
-  private openInventory(): void {
-    if (this.state !== 'playing') return;
-    this.inventory.open(this.mode === 'survival' ? this.survival.blocks : undefined);
+  private syncInventory(): void {
+    this.hud.setHotbar(this.hotbar, this.crafting.slots.slice(0, 9).map(s => s?.count ?? 0));
+  }
+
+  private openInventory(workbench = false): void {
+    if (this.state !== 'playing' || this.inventory.isOpen) return;
+    this.inventory.open(workbench, this.mode);
     this.input.reset();
     this.mining.reset();
     this.touch.setEnabled(false);
+    this.keyboard.setEnabled(false);
     this.keyboard.exitLock();
   }
 
-  private closeInventory(): void {
-    if (!this.inventory.isOpen) return;
-    this.inventory.close();
+  private closeInventory(): boolean {
+    if (!this.inventory.isOpen) return true;
+    if (!this.inventory.close()) return false;
     if (this.state === 'playing') {
       this.touch.setEnabled(IS_TOUCH_DEVICE);
+      this.keyboard.setEnabled(true);
       if (!IS_TOUCH_DEVICE) this.keyboard.requestLock();
     }
+    return true;
   }
 
   private disposeWorld(): void {
@@ -337,6 +348,7 @@ export class Game {
     this.player = null;
     this.currentHit = null;
     this.selectionBox.visible = false;
+    this.crafting.reset([]);
     this.closeInventory();
   }
 
@@ -396,9 +408,9 @@ export class Game {
     if (this.state !== 'dead' || !this.player || !this.world) return;
     // Original spawn may have unloaded or been excavated. Loading rechecks safety.
     this.player.teleport(this.spawn.x, this.spawn.y, this.spawn.z);
-    this.survival = new Survival();
-    this.hotbar = Array(9).fill(AIR);
-    this.hud.setHotbar(this.hotbar);
+    this.survival = new Survival(this.crafting);
+    this.crafting.reset([]);
+    this.syncInventory();
     this.hud.setSelected(this.selectedSlot, AIR);
     this.mining.reset(); this.attackCooldown = 0; this.accumulator = 0;
     const r = this.settings.get().renderDistance;
@@ -435,11 +447,11 @@ export class Game {
     if (!this.world.setBlock(hit.x, hit.y, hit.z, AIR)) return;
     if (this.mode === 'survival') {
       const drop = this.survival.collect(hit.id);
-      if (drop && !this.hotbar.includes(drop)) {
-        const empty = this.hotbar.indexOf(AIR);
-        if (empty >= 0) this.hotbar[empty] = drop;
+      if (!drop) {
+        this.world.setBlock(hit.x, hit.y, hit.z, hit.id);
+        this.hud.toast('Инвентарь полон: для добычи нужно свободное место');
       }
-      this.hud.setHotbar(this.hotbar);
+      this.syncInventory();
       this.hud.setSurvival(this.mode, this.survival, this.hotbar);
     }
     this.mining.reset();
@@ -450,7 +462,11 @@ export class Game {
     if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.player) return;
     this.updateTarget();
     if (!this.currentHit || this.targetAnimal) return;
-    const id = this.hotbar[this.selectedSlot];
+    if (this.currentHit.id === CRAFTING_TABLE && !this.input.sneak) {
+      this.openInventory(true);
+      return;
+    }
+    const id = ITEM_BY_ID.get(this.hotbar[this.selectedSlot])?.blockId ?? AIR;
     if (id === AIR || (this.mode === 'survival' && this.survival.count(id) < 1)) return;
     const hit = this.currentHit;
     let x: number, y: number, z: number;
@@ -467,7 +483,11 @@ export class Game {
     if (def.solid && this.player.intersectsBlock(x, y, z)) return;
     if (def.solid && this.animals?.intersectsBlock(x, y, z)) return;
     if (!this.world.setBlock(x, y, z, id)) return;
-    if (this.mode === 'survival') this.survival.consumeBlock(id);
+    if (this.mode === 'survival') {
+      const stack = this.crafting.slots[this.selectedSlot]!;
+      if (--stack.count === 0) this.crafting.slots[this.selectedSlot] = null;
+      this.syncInventory();
+    }
     this.hud.setSurvival(this.mode, this.survival, this.hotbar);
     this.updateTarget();
   }

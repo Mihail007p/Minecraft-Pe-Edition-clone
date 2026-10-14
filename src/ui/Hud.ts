@@ -1,6 +1,6 @@
 import type { GameMode, Survival } from '../player/Survival.ts';
-import { BLOCKS } from '../world/Blocks.ts';
-import { blockIconURL } from '../render/BlockIcons.ts';
+import { ITEM_BY_ID } from '../crafting/Items.ts';
+import { itemIconURL } from '../render/ItemIcons.ts';
 import { el, show } from './dom.ts';
 
 /** Игровой HUD: прицел, хотбар, кнопки паузы и инвентаря, отладочная панель, эффект под водой. */
@@ -69,7 +69,7 @@ export class Hud {
     parent.appendChild(this.root);
   }
 
-  setSurvival(mode: GameMode, stats: Survival, slots: readonly number[]): void {
+  setSurvival(mode: GameMode, stats: Survival, _slots: readonly number[]): void {
     const survival = mode === 'survival';
     this.vitalsEl.textContent = survival
       ? `♥ ${Math.ceil(stats.health)}/20 · Сытость ${Math.ceil(stats.hunger)}/20${stats.air < 10 ? `   ◌ ${Math.ceil(stats.air)}` : ''}`
@@ -78,7 +78,6 @@ export class Hud {
     show(this.eatBtn, survival);
     this.eatBtn.textContent = `Есть (${stats.food}) · R`;
     this.eatBtn.disabled = stats.food < 1 || stats.hunger >= 20;
-    this.counts.forEach((el, i) => { el.textContent = survival && slots[i] ? String(stats.count(slots[i])) : ''; });
   }
 
   setMining(progress: number): void {
@@ -92,17 +91,18 @@ export class Hud {
     show(this.root, visible);
   }
 
-  setHotbar(slots: readonly number[]): void {
+  setHotbar(slots: readonly number[], counts: readonly number[] = []): void {
     slots.forEach((id, i) => {
       const img = this.slotImgs[i];
       if (id === 0) {
         img.removeAttribute('src');
         img.style.visibility = 'hidden';
       } else {
-        img.src = blockIconURL(id);
+        img.src = itemIconURL(id);
         img.style.visibility = 'visible';
       }
-      this.slotsEl[i].title = BLOCKS[id]?.name ?? '';
+      this.slotsEl[i].title = ITEM_BY_ID.get(id)?.name ?? '';
+      this.counts[i].textContent = counts[i] ? String(counts[i]) : '';
     });
   }
 
@@ -110,7 +110,7 @@ export class Hud {
     this.slotsEl[this.selected]?.classList.remove('selected');
     this.selected = index;
     this.slotsEl[index]?.classList.add('selected');
-    if (blockId !== 0) this.toast(BLOCKS[blockId].name);
+    if (blockId !== 0) this.toast(ITEM_BY_ID.get(blockId)?.name ?? '');
   }
 
   setDebug(text: string): void {

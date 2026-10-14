@@ -53,7 +53,9 @@ test('survival UI: mode, mining, finite stock, hunting, eating, death and respaw
     assert.equal(game.world.getBlock(hit.x, hit.y, hit.z), AIR);
     assert.equal(game.survival.count(DIRT), 1); assert.equal(game.hotbar[0], DIRT);
     assert.equal(win.document.querySelector('.slot .item-count')!.textContent, '1');
-    game.openInventory(); assert.equal(win.document.querySelectorAll('.inv-cell').length, 1);
+    game.openInventory();
+    assert.equal(win.document.querySelectorAll('.inv-cell').length, 0, 'survival never exposes creative items');
+    assert.equal(win.document.querySelectorAll('.bag-grid button img').length, 1, 'mined item is in the shared bag');
     game.closeInventory();
     p.yaw = 0.8; game.updateTarget(); const base = { ...game.currentHit };
     game.placeBlock();
