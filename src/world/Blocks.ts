@@ -124,6 +124,20 @@ export const WOOL_PINK = define({ key: 'wool_pink', name: 'Розовая шер
 export const WOOL_GRAY = define({ key: 'wool_gray', name: 'Серая шерсть', textures: { all: 'wool_gray' } });
 export const WOOL_BLACK = define({ key: 'wool_black', name: 'Чёрная шерсть', textures: { all: 'wool_black' } });
 
+// Новые ID добавляем только в конец реестра, сохраняя ID существующих блоков.
+export const CLAY = define({ key: 'clay', name: 'Глина', textures: { all: 'clay' } });
+export const COAL_BLOCK = define({ key: 'coal_block', name: 'Угольный блок', textures: { all: 'coal_block' } });
+export const IRON_BLOCK = define({ key: 'iron_block', name: 'Железный блок', textures: { all: 'iron_block' } });
+export const GOLD_BLOCK = define({ key: 'gold_block', name: 'Золотой блок', textures: { all: 'gold_block' } });
+export const DIAMOND_BLOCK = define({ key: 'diamond_block', name: 'Алмазный блок', textures: { all: 'diamond_block' } });
+export const EMERALD_BLOCK = define({ key: 'emerald_block', name: 'Изумрудный блок', textures: { all: 'emerald_block' } });
+export const REDSTONE_BLOCK = define({ key: 'redstone_block', name: 'Редстоуновый блок', textures: { all: 'redstone_block' } });
+export const LAPIS_BLOCK = define({ key: 'lapis_block', name: 'Лазуритовый блок', textures: { all: 'lapis_block' } });
+export const QUARTZ_BLOCK = define({ key: 'quartz_block', name: 'Кварцевый блок', textures: { all: 'quartz_block' } });
+
+export const CHEST = define({ key: 'chest', name: 'Сундук', textures: { all: 'chest' } });
+export const FURNACE = define({ key: 'furnace', name: 'Печь', textures: { side: 'furnace_side', top: 'stone', bottom: 'stone' } });
+
 export const BLOCKS: readonly BlockDef[] = defs;
 
 /** Быстрые таблицы свойств (индекс — id блока) для горячих циклов мешера/физики. */

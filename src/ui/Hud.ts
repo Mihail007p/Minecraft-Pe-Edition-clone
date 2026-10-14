@@ -1,5 +1,5 @@
-import { BLOCKS } from '../world/Blocks.ts';
-import { blockIconURL } from '../render/BlockIcons.ts';
+import { ITEM_BY_ID } from '../crafting/Items.ts';
+import { itemIconURL } from '../render/ItemIcons.ts';
 import { el, show } from './dom.ts';
 
 /** Игровой HUD: прицел, хотбар, кнопки паузы и инвентаря, отладочная панель, эффект под водой. */
@@ -7,6 +7,7 @@ export class Hud {
   readonly root: HTMLElement;
   private slotsEl: HTMLElement[] = [];
   private slotImgs: HTMLImageElement[] = [];
+  private counts: HTMLElement[] = [];
   private debugEl: HTMLElement;
   private underwaterEl: HTMLElement;
   private flyEl: HTMLElement;
@@ -24,7 +25,9 @@ export class Hud {
     const hotbar = el('div', { class: 'hotbar' });
     for (let i = 0; i < 9; i++) {
       const img = el('img', { class: 'slot-icon', alt: '', draggable: 'false' });
-      const slot = el('div', { class: 'slot', [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onSelectSlot?.(i); } }, [img]);
+      const count = el('span', { class: 'stack-count' });
+      this.counts.push(count);
+      const slot = el('div', { class: 'slot', [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onSelectSlot?.(i); } }, [img, count]);
       hotbar.appendChild(slot);
       this.slotsEl.push(slot);
       this.slotImgs.push(img as HTMLImageElement);
@@ -59,17 +62,18 @@ export class Hud {
     show(this.root, visible);
   }
 
-  setHotbar(slots: readonly number[]): void {
+  setHotbar(slots: readonly number[], counts: readonly number[] = []): void {
     slots.forEach((id, i) => {
       const img = this.slotImgs[i];
       if (id === 0) {
         img.removeAttribute('src');
         img.style.visibility = 'hidden';
       } else {
-        img.src = blockIconURL(id);
+        img.src = itemIconURL(id);
         img.style.visibility = 'visible';
       }
-      this.slotsEl[i].title = BLOCKS[id]?.name ?? '';
+      this.slotsEl[i].title = ITEM_BY_ID.get(id)?.name ?? '';
+      this.counts[i].textContent = (counts[i] ?? 0) > 1 ? String(counts[i]) : '';
     });
   }
 
@@ -77,7 +81,7 @@ export class Hud {
     this.slotsEl[this.selected]?.classList.remove('selected');
     this.selected = index;
     this.slotsEl[index]?.classList.add('selected');
-    if (blockId !== 0) this.toast(BLOCKS[blockId].name);
+    if (blockId !== 0) this.toast(ITEM_BY_ID.get(blockId)?.name ?? '');
   }
 
   setDebug(text: string): void {
