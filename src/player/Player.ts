@@ -2,11 +2,12 @@
 // Без three.js — только мир и числа, что позволяет тестировать в Node.
 
 import {
-  FLY_SPEED, FLY_VERTICAL_SPEED, GRAVITY, JUMP_VELOCITY, PLAYER_EYE_HEIGHT, PLAYER_HEIGHT,
+  CHUNK_HEIGHT, FLY_SPEED, FLY_VERTICAL_SPEED, GRAVITY, JUMP_VELOCITY, PLAYER_EYE_HEIGHT, PLAYER_HEIGHT,
   PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_ACCEL, WATER_DRAG,
-  WATER_EXIT_VELOCITY, WATER_FLOAT_SPEED, WATER_JUMP_VELOCITY, WATER_RISE_SPEED, WATER_SWIM_SPEED,
+  WATER_EXIT_VELOCITY, WATER_FLOAT_DEPTH, WATER_FLOAT_GAIN, WATER_JUMP_VELOCITY, WATER_RISE_SPEED,
+  WATER_SINK_SPEED, WATER_SWIM_SPEED,
 } from '../config.ts';
-import { isWater } from '../world/Blocks.ts';
+import { isWater, liquidSurfaceHeight } from '../world/Blocks.ts';
 import type { World } from '../world/World.ts';
 
 export interface MoveInput {
@@ -38,6 +39,10 @@ export class Player {
   flying = false;
   inWater = false;
   headInWater = false;
+  /** Высота видимой поверхности воды над игроком (мировая Y); null, если игрок не в воде. */
+  waterSurfaceY: number | null = null;
+  /** Верхняя грань самого верхнего блока воды в столбе игрока: по ней определяется «голова в воде». */
+  private waterTopY = 0;
   landedDistance = 0;
   private fallTop = 0;
   /** Ещё действует подтягивание на берег после выхода из воды. */
@@ -91,6 +96,7 @@ export class Player {
     const midBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + 1.0), Math.floor(this.z));
     this.inWater = isWater(feetBlock) || isWater(midBlock);
     this.headInWater = isWater(world.getBlock(Math.floor(this.x), Math.floor(this.eyeY), Math.floor(this.z)));
+    this.waterSurfaceY = this.inWater ? this.findWaterSurface() : null;
 
     if (this.flying || this.inWater || this.onGround) this.fallTop = this.y;
     this.fallTop = Math.max(this.fallTop, this.y);
@@ -136,6 +142,14 @@ export class Player {
     } else if (this.inWater) {
       const atSurface = !this.headInWater;
       const k = 1 - Math.exp(-WATER_ACCEL * dt);
+      // Уровень плавания: ступни на WATER_FLOAT_DEPTH ниже поверхности — вода у шеи, голова снаружи.
+      // Пружина тянет к нему и сверху, и снизу, поэтому человек не «всплывает на воду» и не тонет.
+      // Над блоком текучей воды видимая поверхность ниже его верха — глаза всё равно держим над блоком.
+      const floatY = this.waterSurfaceY === null
+        ? this.y
+        : Math.max(this.waterSurfaceY - WATER_FLOAT_DEPTH, this.waterTopY + 0.05 - PLAYER_EYE_HEIGHT);
+      const floatError = floatY - this.y;
+      const buoyancy = Math.max(-WATER_SINK_SPEED, Math.min(WATER_RISE_SPEED, floatError * WATER_FLOAT_GAIN));
       if (input.jump && this.onGround) {
         // Прыжок со дна/мелководья — например, чтобы выбраться на берег.
         this.vy = JUMP_VELOCITY * 0.75;
@@ -148,12 +162,12 @@ export class Player {
         const moving = Math.hypot(this.vx, this.vz) > 0.5 && !this.onGround;
         if (moving) {
           // Плывём в направлении взгляда: смотрим вниз — ныряем, вверх — всплываем.
-          const target = Math.sin(this.pitch) * WATER_SWIM_SPEED + (atSurface ? WATER_FLOAT_SPEED * 2 : 0.3);
+          // У поверхности корпус держится на воде, поэтому к взгляду добавляется только возврат к уровню плавания.
+          const target = Math.sin(this.pitch) * WATER_SWIM_SPEED + (atSurface ? buoyancy : 0.3);
           this.vy += (target - this.vy) * (1 - Math.exp(-4 * dt));
         } else if (!this.onGround) {
-          // Плавучесть: глубоко вода держит и тянет вверх, у поверхности — дрейф.
-          const target = atSurface ? WATER_FLOAT_SPEED : WATER_RISE_SPEED;
-          this.vy += (target - this.vy) * k;
+          // Плавучесть: глубоко вода выталкивает вверх, у поверхности плавно выводит тело на уровень плавания.
+          this.vy += (buoyancy - this.vy) * k;
         }
       }
       this.vy *= Math.max(0, 1 - WATER_DRAG * dt);
@@ -218,6 +232,21 @@ export class Player {
     if (this.flying && this.onGround && input.sneak) this.flying = false;
   }
 
+  /**
+   * Высота видимой поверхности воды в столбе игрока: идём вверх от блока воды у его тела, пока вода не кончится.
+   * Источник поднимается не до края блока (см. liquidSurfaceHeight), текущая вода ещё ниже.
+   */
+  private findWaterSurface(): number | null {
+    const bx = Math.floor(this.x);
+    const bz = Math.floor(this.z);
+    let by = Math.floor(this.y + 0.3);
+    if (!isWater(this.world.getBlock(bx, by, bz))) by = Math.floor(this.y + 1.0);
+    if (!isWater(this.world.getBlock(bx, by, bz))) return null;
+    while (by + 1 < CHUNK_HEIGHT && isWater(this.world.getBlock(bx, by + 1, bz))) by++;
+    this.waterTopY = by + 1;
+    return by + liquidSurfaceHeight(this.world.getBlock(bx, by, bz));
+  }
+
   toggleFly(): void {
     this.flying = !this.flying;
     if (this.flying) this.vy = Math.max(this.vy, 0);
@@ -234,9 +263,10 @@ export class Player {
     const uz = dz / len;
     const fx = Math.floor(this.x + ux * (HALF_W + 0.25));
     const fz = Math.floor(this.z + uz * (HALF_W + 0.25));
-    // По грудь в воде можно подтянуться выше (помогает плавучесть).
+    // По грудь в воде можно подтянуться выше (помогает плавучесть). На плаву ступни глубоко под водой,
+    // поэтому запас хватает и на берег, который на блок выше поверхности.
     const deep = isWater(this.world.getBlock(Math.floor(this.x), Math.floor(this.y + 1.0), Math.floor(this.z)));
-    const maxClimb = deep ? 2.2 : 1.2;
+    const maxClimb = deep ? 2.5 : 1.2;
     const baseY = Math.floor(this.y + 0.05);
     for (let up = -1; up <= 2; up++) {
       const by = baseY + up;
