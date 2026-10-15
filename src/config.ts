@@ -25,6 +25,12 @@ export const WATER_SWIM_SPEED = 3.0;
 export const WATER_DRAG = 0.8;
 export const REACH_DISTANCE = 5.5; // дальность взаимодействия с блоками
 
+// --- Камера от третьего лица ---
+export type CameraView = 'first' | 'third-back' | 'third-front';
+export const CAMERA_VIEW_ORDER: readonly CameraView[] = ['first', 'third-back', 'third-front'];
+export const THIRD_PERSON_DISTANCE = 4.2; // дистанция камеры от глаз игрока в блоках
+export const THIRD_PERSON_HEIGHT = 0.35; // подъём камеры над линией взгляда (вид сзади)
+
 // --- Управление ---
 export const HOLD_TO_BREAK_MS = 220; // удержание тача, после которого начинается ломание
 export const BREAK_REPEAT_MS = 260; // интервал действия при удержании (добыча / удар)
@@ -46,6 +52,7 @@ export interface GameSettings {
   invertY: boolean;
   touchGestures: boolean; // тап/удержание на зоне обзора вместо отдельных кнопок
   touchButtonSize: number; // диаметр сенсорных кнопок в CSS-пикселях
+  cameraView: CameraView; // первое лицо / третье лицо сзади / третье лицо спереди
 }
 
 export const DEFAULT_SETTINGS: GameSettings = {
@@ -57,6 +64,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   invertY: false,
   touchGestures: false,
   touchButtonSize: 64,
+  cameraView: 'first',
 };
 
 export const SETTINGS_STORAGE_KEY = 'mcpe-clone.settings.v1';

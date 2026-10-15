@@ -24,6 +24,7 @@ export class Hud {
   onSelectSlot: ((index: number) => void) | null = null;
   onOpenInventory: (() => void) | null = null;
   onPause: (() => void) | null = null;
+  onCycleCamera: (() => void) | null = null;
 
   constructor(parent: HTMLElement) {
     // Без Pointer Events оставляем стандартный click (включая тап) для Android WebView.
@@ -46,6 +47,11 @@ export class Hud {
       class: 'icon-btn pause-btn', type: 'button', 'aria-label': 'Пауза',
       [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onPause?.(); },
     }, ['❚❚']);
+    const cameraBtn = el('button', {
+      class: 'icon-btn camera-btn', type: 'button', 'aria-label': 'Сменить вид камеры',
+      title: 'Вид камеры: первое лицо / третье лицо (V)',
+      [press]: (e) => { e.preventDefault(); e.stopPropagation(); this.onCycleCamera?.(); },
+    }, ['📷']);
 
     this.debugEl = el('div', { class: 'debug' });
     this.underwaterEl = el('div', { class: 'underwater hidden' });
@@ -64,6 +70,7 @@ export class Hud {
       this.flyEl,
       this.toastEl,
       pauseBtn,
+      cameraBtn,
       el('div', { class: 'hotbar-wrap' }, [hotbar, invBtn]),
     ]);
     parent.appendChild(this.root);

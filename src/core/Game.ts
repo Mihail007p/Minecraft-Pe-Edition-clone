@@ -7,8 +7,8 @@ import {
   WebGLRenderer, type DataArrayTexture,
 } from 'three';
 import {
-  CHUNK_HEIGHT, DEFAULT_SETTINGS, FIXED_TIMESTEP, IS_TOUCH_DEVICE, MAX_PIXEL_RATIO, MAX_SUBSTEPS,
-  REACH_DISTANCE, type GameSettings,
+  CAMERA_VIEW_ORDER, CHUNK_HEIGHT, DEFAULT_SETTINGS, FIXED_TIMESTEP, IS_TOUCH_DEVICE,
+  MAX_PIXEL_RATIO, MAX_SUBSTEPS, REACH_DISTANCE, THIRD_PERSON_DISTANCE, type GameSettings,
 } from '../config.ts';
 import { InputState, type InputActions } from '../input/InputState.ts';
 import { KeyboardMouse } from '../input/KeyboardMouse.ts';
@@ -16,6 +16,7 @@ import { TouchControls } from '../input/TouchControls.ts';
 import { Player } from '../player/Player.ts';
 import { createChunkMaterials, type ChunkMaterials } from '../render/ChunkMaterial.ts';
 import { ChunkRenderer } from '../render/ChunkRenderer.ts';
+import { PlayerModel, cameraPoseForView } from '../render/PlayerModel.ts';
 import { Sky } from '../render/Sky.ts';
 import { createBlockTextureArray } from '../render/TextureAtlas.ts';
 import { Hud } from '../ui/Hud.ts';
@@ -58,6 +59,7 @@ export class Game {
   private world: World | null = null;
   private chunkRenderer: ChunkRenderer | null = null;
   private player: Player | null = null;
+  private playerModel: PlayerModel | null = null;
   private currentHit: RaycastHit | null = null;
 
   private input = new InputState();
@@ -139,6 +141,7 @@ export class Game {
       selectHotbar: (i) => this.selectSlot(i),
       scrollHotbar: (d) => this.selectSlot((this.selectedSlot + d + 9) % 9),
       toggleFly: () => this.toggleFly(),
+      cycleCamera: () => this.cycleCamera(),
       togglePause: () => (this.inventory.isOpen ? this.closeInventory() : this.state === 'playing' ? this.pause() : this.state === 'paused' ? this.resume() : undefined),
       toggleInventory: () => (this.inventory.isOpen ? this.closeInventory() : this.openInventory()),
     };
@@ -150,6 +153,7 @@ export class Game {
     };
 
     this.hud.onSelectSlot = (i) => this.selectSlot(i);
+    this.hud.onCycleCamera = () => this.cycleCamera();
     this.hud.onOpenInventory = () => this.openInventory();
     this.hud.onEat = () => this.eat();
     this.hud.onPause = () => this.pause();
@@ -220,6 +224,9 @@ export class Game {
     this.animals = new Animals(this.scene, this.world);
     this.chunkRenderer = new ChunkRenderer(this.scene, this.world, this.materials);
     this.player = new Player(this.world);
+    this.playerModel = new PlayerModel();
+    this.scene.add(this.playerModel.root);
+    this.playerModel.setVisible(this.settings.get().cameraView !== 'first');
     const spawn = this.world.gen.findSpawn();
     this.player.teleport(spawn.x, spawn.y, spawn.z);
     this.player.yaw = 0;
@@ -315,6 +322,13 @@ export class Game {
 
   private syncInventory(): void {
     this.hud.setHotbar(this.hotbar, this.crafting.slots.slice(0, 9).map(s => s?.count ?? 0));
+    this.syncHeldItem();
+  }
+
+  /** В руке модели от третьего лица — блок из выбранного слота хотбара. */
+  private syncHeldItem(): void {
+    const blockId = ITEM_BY_ID.get(this.hotbar[this.selectedSlot])?.blockId ?? AIR;
+    this.playerModel?.setHeldBlock(blockId);
   }
 
   private openInventory(workbench = false): void {
@@ -341,6 +355,11 @@ export class Game {
   private disposeWorld(): void {
     this.animals?.dispose();
     this.animals = null;
+    if (this.playerModel) {
+      this.scene.remove(this.playerModel.root);
+      this.playerModel.dispose();
+      this.playerModel = null;
+    }
     this.targetAnimal = null;
     this.chunkRenderer?.dispose();
     this.chunkRenderer = null;
@@ -373,6 +392,9 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.sky.setRenderDistance(s.renderDistance);
     this.hud.setDebugVisible(s.showCoords);
+    // Модель игрока видна только от третьего лица; в первом лице она
+    // перекрывала бы обзор (камера находится прямо в голове).
+    this.playerModel?.setVisible(s.cameraView !== 'first');
   }
 
   private onResize(): void {
@@ -388,6 +410,19 @@ export class Game {
   private selectSlot(index: number): void {
     this.selectedSlot = index;
     this.hud.setSelected(index, this.hotbar[index]);
+    this.syncHeldItem();
+  }
+
+  /** Переключить вид камеры по кругу: первое лицо → третье сзади → третье спереди. */
+  private cycleCamera(): void {
+    const current = this.settings.get().cameraView;
+    const next = CAMERA_VIEW_ORDER[(CAMERA_VIEW_ORDER.indexOf(current) + 1) % CAMERA_VIEW_ORDER.length];
+    this.settings.set('cameraView', next);
+    this.hud.toast(
+      next === 'first' ? 'Вид от первого лица'
+        : next === 'third-back' ? 'Вид от третьего лица · сзади'
+          : 'Вид от третьего лица · спереди',
+    );
   }
 
   private toggleFly(): void {
@@ -423,6 +458,7 @@ export class Game {
   private breakBlock(): void {
     if (this.state !== 'playing' || this.inventory.isOpen || !this.world || !this.player) return;
     this.updateTarget();
+    this.playerModel?.swingArm();
     if (this.targetAnimal) {
       if (this.attackCooldown > 0) return;
       this.attackCooldown = 0.45;
@@ -483,6 +519,7 @@ export class Game {
     if (def.solid && this.player.intersectsBlock(x, y, z)) return;
     if (def.solid && this.animals?.intersectsBlock(x, y, z)) return;
     if (!this.world.setBlock(x, y, z, id)) return;
+    this.playerModel?.swingArm();
     if (this.mode === 'survival') {
       const stack = this.crafting.slots[this.selectedSlot]!;
       if (--stack.count === 0) this.crafting.slots[this.selectedSlot] = null;
@@ -500,9 +537,19 @@ export class Game {
     }
     const p = this.player;
     const [dx, dy, dz] = p.lookDirection();
-    const hit = raycastBlocks(this.world, p.x, p.eyeY, p.z, dx, dy, dz, REACH_DISTANCE);
+    // От третьего лица сзади луч идёт из камеры вдоль взгляда — тогда блок
+    // под центральным прицелом совпадает с тем, что реально выделится.
+    // Спереди и от первого лица целимся из глаз игрока.
+    const view = this.settings.get().cameraView;
+    const origin: [number, number, number] = view === 'third-back'
+      ? cameraPoseForView(view, p, (x, y, z) => this.world!.isSolid(x, y, z)).position
+      : [p.x, p.eyeY, p.z];
+    // Дистанция от камеры больше на отступ камеры, чтобы дальность добычи
+    // перед персонажем оставалась прежней (≈5.5 блоков от игрока).
+    const reach = view === 'third-back' ? REACH_DISTANCE + THIRD_PERSON_DISTANCE : REACH_DISTANCE;
+    const hit = raycastBlocks(this.world, origin[0], origin[1], origin[2], dx, dy, dz, reach);
     this.currentHit = hit;
-    this.targetAnimal = this.animals?.target([p.x, p.eyeY, p.z], [dx, dy, dz], Math.min(REACH_DISTANCE, hit?.distance ?? REACH_DISTANCE)) ?? null;
+    this.targetAnimal = this.animals?.target(origin, [dx, dy, dz], Math.min(reach, hit?.distance ?? reach)) ?? null;
     this.hud.setTarget(this.targetAnimal ? `${ANIMAL_NAMES[this.targetAnimal.kind]} · ♥ ${this.targetAnimal.health}` : '');
     if (this.targetAnimal || !hit || `${hit.x},${hit.y},${hit.z}` !== this.mining.key) this.mining.reset();
     this.hud.setMining(this.mining.progress);
@@ -544,8 +591,16 @@ export class Game {
     }
 
     if (this.player) {
-      this.camera.position.set(this.player.x, this.player.eyeY, this.player.z);
-      this.camera.rotation.set(this.player.pitch, this.player.yaw, 0);
+      const pose = cameraPoseForView(
+        s.cameraView, this.player,
+        this.world ? (x, y, z) => this.world!.isSolid(x, y, z) : undefined,
+      );
+      this.camera.position.set(pose.position[0], pose.position[1], pose.position[2]);
+      this.camera.rotation.set(pose.pitch, pose.yaw, 0);
+      if (this.playerModel && (this.state === 'playing' || this.state === 'loading')) {
+        this.playerModel.setVisible(s.cameraView !== 'first');
+        this.playerModel.update(Math.min(dt, 0.05), this.player);
+      }
     }
     this.sky.update(this.camera, (now - this.startTime) / 1000);
     this.materials.setFog(this.sky.fog.color as Color, this.sky.fog.near, this.sky.fog.far);

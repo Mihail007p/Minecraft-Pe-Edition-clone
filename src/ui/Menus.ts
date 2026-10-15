@@ -1,5 +1,7 @@
 import type { GameMode } from '../player/Survival.ts';
-import { GAME_TITLE, GAME_VERSION, type GameSettings } from '../config.ts';
+import {
+  GAME_TITLE, GAME_VERSION, type CameraView, type GameSettings,
+} from '../config.ts';
 import type { Settings } from '../core/Settings.ts';
 import { button, el, show } from './dom.ts';
 
@@ -73,6 +75,8 @@ export class SettingsPanel {
     this.settings = settings;
     const list = el('div', { class: 'settings-list' });
     list.append(
+      this.cameraViewControl(),
+      el('p', { class: 'control-help' }, ['От третьего лица видна детальная модель игрока: лицо и причёска, куртка с рюкзаком, ботинки со шнурками, анимации ходьбы, плавания и взмаха рукой. Камера сама укорачивает дистанцию у стен. На ПК вид переключается клавишей V, на телефоне — кнопкой камеры в игре.']),
       this.slider('renderDistance', 'Дальность прорисовки', 3, 10, 1, (v) => `${v} чанков`),
       this.slider('fov', 'Поле зрения', 50, 110, 1, (v) => `${v}°`),
       this.slider('sensitivity', 'Чувствительность', 0.3, 3, 0.1, (v) => `${Math.round(v * 100)}%`),
@@ -103,6 +107,35 @@ export class SettingsPanel {
 
   private refresh(): void {
     for (const update of this.controls.values()) update();
+  }
+
+  /** Трёхпозиционный выбор вида камеры: первое лицо / третье сзади / третье спереди. */
+  private cameraViewControl(): HTMLElement {
+    const options: { value: CameraView; label: string }[] = [
+      { value: 'first', label: '1-е лицо' },
+      { value: 'third-back', label: '3-е сзади' },
+      { value: 'third-front', label: '3-е спереди' },
+    ];
+    const buttons = new Map<CameraView, HTMLButtonElement>();
+    const update = () => {
+      const current = this.settings.get().cameraView;
+      for (const [value, btn] of buttons) btn.classList.toggle('on', value === current);
+    };
+    const row = el('div', { class: 'view-options' });
+    for (const option of options) {
+      const btn = el('button', {
+        class: 'mc-btn toggle view-option', type: 'button',
+        click: () => { this.settings.set('cameraView', option.value); update(); },
+      }, [option.label]);
+      buttons.set(option.value, btn);
+      row.appendChild(btn);
+    }
+    this.controls.set('cameraView', update);
+    update();
+    return el('div', { class: 'setting' }, [
+      el('div', { class: 'setting-label' }, [el('span', {}, ['Вид камеры'])]),
+      row,
+    ]);
   }
 
   private slider(
