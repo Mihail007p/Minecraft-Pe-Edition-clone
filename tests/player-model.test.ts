@@ -87,7 +87,7 @@ test('анимация модели: при ходьбе ноги и руки м
   assert.ok(Math.abs(legL.rotation.x) > 0.05, `нога должна махать: ${legL.rotation.x}`);
   assert.ok(Math.sign(legL.rotation.x) === -Math.sign(legR.rotation.x), 'ноги машут в противофазе');
   assert.ok(elbowL.rotation.x > 0.05, 'локоть сгибается при ходьбе');
-  assert.ok(kneeL.rotation.x + kneeR.rotation.x > 0, 'колено слегка сгибается в шаге');
+  assert.ok(kneeL.rotation.x + kneeR.rotation.x < 0, 'колени сгибаются назад — поднимается пятка');
   assert.ok(Math.abs(head.rotation.x - 0.4 * 0.85) < 1e-9, 'голова наклоняется за взглядом');
   assert.ok(Math.abs(model.root.position.y - 41) < 1e-9, 'модель стоит на ногах игрока');
   assert.ok(Math.abs(model.root.rotation.y - 0.5) < 1e-9, 'модель повёрнута по yaw');
@@ -100,21 +100,46 @@ test('анимация модели: при ходьбе ноги и руки м
   model.dispose();
 });
 
-test('в воде модель плывёт корпусом вперёд и делает флаттер, а на дне идёт обычным коротким шагом', () => {
+test('в воде модель плывёт кролем: руки по кругу в противофазе, ноги флаттером, колени назад', () => {
   const model = new PlayerModel();
   const swimmer = {
     x: 0, y: 41, z: 0, yaw: 0, pitch: 0,
     vx: 0, vy: 0, vz: -3, onGround: false, flying: false, inWater: true,
   };
-  for (let i = 0; i < 20; i++) model.update(1 / 60, swimmer);
+  const legL = model.root.getObjectByName('leg-left')!;
+  const legR = model.root.getObjectByName('leg-right')!;
+  const kneeL = model.root.getObjectByName('knee-left')!;
+  const kneeR = model.root.getObjectByName('knee-right')!;
+  const armL = model.root.getObjectByName('arm-left')!;
+  const armR = model.root.getObjectByName('arm-right')!;
+  let bodyLean = 0;
+  let legMin = Infinity; let legMax = -Infinity;
+  let maxOppositeSpread = 0; let maxKnee = -Infinity; let minKnee = Infinity;
+  let maxArmSpread = 0; let maxReach = -Infinity;
+  for (let i = 0; i < 120; i++) {
+    model.update(1 / 60, swimmer);
+    const l = legL.rotation.x;
+    const r = legR.rotation.x;
+    legMin = Math.min(legMin, l, r);
+    legMax = Math.max(legMax, l, r);
+    maxOppositeSpread = Math.max(maxOppositeSpread, Math.abs(l - r));
+    maxKnee = Math.max(maxKnee, kneeL.rotation.x, kneeR.rotation.x);
+    minKnee = Math.min(minKnee, kneeL.rotation.x, kneeR.rotation.x);
+    maxArmSpread = Math.max(maxArmSpread, Math.abs(armL.rotation.x - armR.rotation.x));
+    maxReach = Math.max(maxReach, armL.rotation.x, armR.rotation.x);
+    bodyLean = model.root.getObjectByName('animated-body')!.rotation.x;
+  }
 
   const body = model.root.getObjectByName('animated-body')!;
-  const swimLeft = model.root.getObjectByName('leg-left')!;
-  const swimRight = model.root.getObjectByName('leg-right')!;
-  assert.ok(body.rotation.x < -0.7, `пловец должен вытянуться вперёд: наклон ${body.rotation.x}`);
+  assert.ok(bodyLean < -0.7, `пловец должен вытянуться вперёд: наклон ${bodyLean}`);
   assert.ok(body.position.y > 0.5, 'голова должна оставаться у поверхности');
-  assert.ok(swimLeft.rotation.x * swimRight.rotation.x > 0, 'ноги делают короткий флаттер, а не шаг в противофазе');
-  assert.ok(Math.abs(swimLeft.rotation.x) < 0.25 && Math.abs(swimRight.rotation.x) < 0.25, 'амплитуда гребка ног небольшая');
+  assert.ok(legMax - legMin > 0.2, `ноги должны бить флаттером: размах ${legMax - legMin}`);
+  assert.ok(legMax < 0.3, `удар ногой короткий, от бедра: максимум ${legMax}`);
+  assert.ok(maxOppositeSpread > 0.25, 'ноги работают в противофазе — одна вверх, другая вниз');
+  assert.ok(maxKnee < 0.02, 'колени никогда не сгибаются вперёд');
+  assert.ok(minKnee < -0.3, `колено сгибается назад в начале удара вниз: ${minKnee}`);
+  assert.ok(maxArmSpread > 1.5, `руки гребут попеременно по полному кругу: разброс ${maxArmSpread}`);
+  assert.ok(maxReach > 1.7, 'в цикле есть вытянутый вперёд-вверх гребок');
   model.dispose();
 
   const waderModel = new PlayerModel();
@@ -123,9 +148,12 @@ test('в воде модель плывёт корпусом вперёд и д�
   const wadingBody = waderModel.root.getObjectByName('animated-body')!;
   const wadingLeft = waderModel.root.getObjectByName('leg-left')!;
   const wadingRight = waderModel.root.getObjectByName('leg-right')!;
+  const wadingKneeL = waderModel.root.getObjectByName('knee-left')!;
+  const wadingKneeR = waderModel.root.getObjectByName('knee-right')!;
   assert.ok(Math.abs(wadingBody.rotation.x) < 0.02, 'на дне персонаж остаётся вертикальным');
   assert.ok(wadingLeft.rotation.x * wadingRight.rotation.x < 0, 'по дну он действительно шагает');
   assert.ok(Math.abs(wadingLeft.rotation.x) < 0.5, 'шаг в воде короче, чем на суше');
+  assert.ok(wadingKneeL.rotation.x + wadingKneeR.rotation.x < 0, 'и по дну колени сгибаются назад');
   waderModel.dispose();
 });
 

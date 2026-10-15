@@ -6,8 +6,13 @@
 // root.rotation.y = yaw игрока сразу ставит её по взгляду.
 //
 // Анимации: ходьба/бег с махами рук и ног от пройденной фазы, дыхание на месте,
-// прыжок и падение, плавание «кролем», парение в полёте, взмах правой рукой
-// при добыче/установке блока и моргание.
+// прыжок и падение, плавание кролем по биомеханике (полный круг рук с высоким
+// локтем при проносе, шестиудорный флаттер от бедра, крен плеч), парение в
+// полёте, взмах правой рукой при добыче/установке блока и моргание.
+//
+// Знаки суставов: вперёд модели — локальный −Z, поэтому отрицательный
+// rotation.x сгибает колено назад (пятка поднимается), а положительный
+// rotation.x сгибает локоть вперёд — оба так, как сгибаются у человека.
 
 import {
   BoxGeometry, DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial,
@@ -628,45 +633,53 @@ export class PlayerModel {
       armR.rotation.x = 0.3 - Math.sin(this.time * 2) * 0.05;
       elbowLFlex = 0.12;
       elbowRFlex = 0.12;
-      legL.rotation.x = 0.12;
-      legR.rotation.x = -0.06;
-      kneeLFlex = 0.05;
-      kneeRFlex = 0.05;
       lean = -0.08;
       bob = Math.sin(this.time * 2) * 0.035;
+      kneeLFlex = -0.05;
+      kneeRFlex = -0.05;
     } else if (swimming) {
-      // Кроль: корпус вытягивается вперёд, руки гребут навстречу друг другу,
-      // а ноги делают короткий частый «флаттер» вместо шага.
+      // Кроль по биомеханике: тело вытянуто горизонтально, руки описывают
+      // полный круг попеременно — одна тянет под водой, вторая в это время
+      // проносится над водой с высоким локтем. Ноги делают шестиудорный
+      // флаттер от бедра строго в противофазе (одна вверх — другая вниз),
+      // колено сгибается назад в начале удара вниз и выпрямляется к его
+      // концу, а плечи катятся вдоль продольной оси в сторону гребущей руки.
       this.swimPhase += dt * (2.4 + swimEffort * 3.8);
-      const stroke = Math.sin(this.swimPhase);
-      const flutter = Math.sin(this.swimPhase * 2.1);
-      const recoveryLeft = Math.max(0, stroke);
-      const recoveryRight = Math.max(0, -stroke);
+      const phaseL = this.swimPhase;
+      const phaseR = this.swimPhase + Math.PI;
 
       if (swimEffort > 0.12) {
-        armL.rotation.x = 0.18 + stroke * 0.78 * swimEffort;
-        armR.rotation.x = 0.18 - stroke * 0.78 * swimEffort;
-        elbowLFlex = 0.12 + recoveryLeft * 0.4 * swimEffort;
-        elbowRFlex = 0.12 + recoveryRight * 0.4 * swimEffort;
-        legL.rotation.x = 0.04 + flutter * 0.17 * swimEffort;
-        legR.rotation.x = 0.04 + Math.sin(this.swimPhase * 2.1 + 0.55) * 0.17 * swimEffort;
-        kneeLFlex = 0.04 + Math.max(0, -flutter) * 0.12 * swimEffort;
-        kneeRFlex = 0.04 + Math.max(0, -Math.sin(this.swimPhase * 2.1 + 0.55)) * 0.12 * swimEffort;
+        const armAngle = (phase: number) => 0.9 + 1.35 * Math.sin(phase) * swimEffort;
+        armL.rotation.x = armAngle(phaseL);
+        armR.rotation.x = armAngle(phaseR);
+        // Высокий локоть при проносе (угол руки растёт), ровная рука при гребке.
+        elbowLFlex = 0.35 + 0.95 * Math.max(0, Math.cos(phaseL)) * swimEffort;
+        elbowRFlex = 0.35 + 0.95 * Math.max(0, Math.cos(phaseR)) * swimEffort;
+        // Шестиудорный флаттер: три удара каждой ногой за цикл рук.
+        const kickL = 3 * phaseL;
+        const kickR = 3 * phaseR;
+        legL.rotation.x = 0.04 + Math.sin(kickL) * 0.22 * swimEffort;
+        legR.rotation.x = 0.04 + Math.sin(kickR) * 0.22 * swimEffort;
+        // Колено сгибается назад (пятка поднимается) в начале удара вниз.
+        kneeLFlex = -(0.05 + 0.45 * Math.max(0, Math.cos(kickL + 0.25)) * swimEffort);
+        kneeRFlex = -(0.05 + 0.45 * Math.max(0, Math.cos(kickR + 0.25)) * swimEffort);
       } else {
-        // На месте персонаж спокойно держится на воде, не продолжая быстро «идти» ногами.
+        // На месте персонаж спокойно держится на воде: редкие ножные удары
+        // в противофазе и короткие гребки-«пропеллеры» руками.
         const tread = Math.sin(this.time * 2.2);
         armL.rotation.x = 0.08 + tread * 0.06;
         armR.rotation.x = 0.08 - tread * 0.06;
         legL.rotation.x = Math.sin(this.time * 3.1) * 0.055;
-        legR.rotation.x = Math.sin(this.time * 3.1 + 0.45) * 0.055;
+        legR.rotation.x = -Math.sin(this.time * 3.1) * 0.055;
         elbowLFlex = 0.12;
         elbowRFlex = 0.12;
-        kneeLFlex = 0.035;
-        kneeRFlex = 0.035;
+        kneeLFlex = -0.035;
+        kneeRFlex = -0.035;
       }
 
       lean = -0.72 - 0.28 * swimEffort;
-      swimRoll = stroke * 0.045 * swimEffort;
+      // Крен в сторону руки, которая сейчас тянет под водой (угол уменьшается).
+      swimRoll = -0.06 * Math.cos(phaseL) * swimEffort;
       // Поднимаем модель относительно ног: голова остаётся у поверхности, а не уходит под воду.
       bob = 0.55 + Math.sin(this.time * 2.4) * (0.012 + 0.012 * swimEffort);
     } else if (!p.onGround) {
@@ -680,8 +693,9 @@ export class PlayerModel {
       elbowRFlex = falling ? 0.28 : 0.18;
       legL.rotation.x = falling ? 0.25 : -0.55;
       legR.rotation.x = falling ? -0.2 : 0.3;
-      kneeLFlex = falling ? 0.1 : 0.24;
-      kneeRFlex = falling ? 0.1 : 0.18;
+      // Колени сгибаются назад — поджимаем пятки, а не «птичьи» ноги вперёд.
+      kneeLFlex = falling ? -0.1 : -0.24;
+      kneeRFlex = falling ? -0.1 : -0.18;
       lean = falling ? 0.04 : -0.06;
     } else if (this.smoothSpeed > 0.15) {
       // На суше — обычный шаг; стоя на дне — более короткие и медленные шаги в воде.
@@ -697,8 +711,9 @@ export class PlayerModel {
       armR.rotation.x = armSwing;
       elbowLFlex = 0.08 + Math.abs(armSwing) * 0.18;
       elbowRFlex = 0.08 + Math.abs(armSwing) * 0.18;
-      kneeLFlex = Math.max(0, -legSwing) * 0.58;
-      kneeRFlex = Math.max(0, legSwing) * 0.58;
+      // Колено сгибается назад, когда нога позади корпуса: поднимается пятка.
+      kneeLFlex = -Math.max(0, -legSwing) * 0.58;
+      kneeRFlex = -Math.max(0, legSwing) * 0.58;
       lean = wading ? -0.015 : this.smoothSpeed > 5 ? -0.14 : -0.05;
       bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * Math.min(1, this.smoothSpeed / 4.3) * (wading ? 0.45 : 1);
     } else {
