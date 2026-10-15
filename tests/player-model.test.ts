@@ -100,6 +100,35 @@ test('анимация модели: при ходьбе ноги и руки м
   model.dispose();
 });
 
+test('в воде модель плывёт корпусом вперёд и делает флаттер, а на дне идёт обычным коротким шагом', () => {
+  const model = new PlayerModel();
+  const swimmer = {
+    x: 0, y: 41, z: 0, yaw: 0, pitch: 0,
+    vx: 0, vy: 0, vz: -3, onGround: false, flying: false, inWater: true,
+  };
+  for (let i = 0; i < 20; i++) model.update(1 / 60, swimmer);
+
+  const body = model.root.getObjectByName('animated-body')!;
+  const swimLeft = model.root.getObjectByName('leg-left')!;
+  const swimRight = model.root.getObjectByName('leg-right')!;
+  assert.ok(body.rotation.x < -0.7, `пловец должен вытянуться вперёд: наклон ${body.rotation.x}`);
+  assert.ok(body.position.y > 0.5, 'голова должна оставаться у поверхности');
+  assert.ok(swimLeft.rotation.x * swimRight.rotation.x > 0, 'ноги делают короткий флаттер, а не шаг в противофазе');
+  assert.ok(Math.abs(swimLeft.rotation.x) < 0.25 && Math.abs(swimRight.rotation.x) < 0.25, 'амплитуда гребка ног небольшая');
+  model.dispose();
+
+  const waderModel = new PlayerModel();
+  const wader = { ...swimmer, onGround: true, vz: -2 };
+  for (let i = 0; i < 20; i++) waderModel.update(1 / 60, wader);
+  const wadingBody = waderModel.root.getObjectByName('animated-body')!;
+  const wadingLeft = waderModel.root.getObjectByName('leg-left')!;
+  const wadingRight = waderModel.root.getObjectByName('leg-right')!;
+  assert.ok(Math.abs(wadingBody.rotation.x) < 0.02, 'на дне персонаж остаётся вертикальным');
+  assert.ok(wadingLeft.rotation.x * wadingRight.rotation.x < 0, 'по дну он действительно шагает');
+  assert.ok(Math.abs(wadingLeft.rotation.x) < 0.5, 'шаг в воде короче, чем на суше');
+  waderModel.dispose();
+});
+
 test('в руке модели — выбранный блок с текстурами, пустая рука без блока', async () => {
   const { GRASS, AIR } = await import('../src/world/Blocks.ts');
   const model = new PlayerModel();
