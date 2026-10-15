@@ -329,6 +329,7 @@ export class PlayerModel {
 
   private time = 0;
   private walkPhase = 0;
+  private swimPhase = 0;
   private smoothSpeed = 0;
   private actionTime = Number.POSITIVE_INFINITY;
   private blinkLeft = 0;
@@ -345,6 +346,7 @@ export class PlayerModel {
       colors.push(shadeF, shadeF, shadeF);
     }
     this.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+    this.body.name = 'animated-body';
     this.root.add(this.body);
     this.root.name = 'player-model';
 
@@ -581,6 +583,9 @@ export class PlayerModel {
 
     const speed = Math.hypot(p.vx, p.vz);
     this.smoothSpeed += (speed - this.smoothSpeed) * (1 - Math.exp(-10 * dt));
+    const swimming = p.inWater && !p.onGround && !p.flying;
+    const swimMotion = Math.max(this.smoothSpeed, Math.abs(p.vy) * 0.55);
+    const swimEffort = swimming ? Math.min(1, swimMotion / 2.5) : 0;
     const { head, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR } = this.parts;
 
     // Моргание проходит тремя фазами: веки опускаются, закрываются и плавно открываются.
@@ -599,8 +604,8 @@ export class PlayerModel {
     }
     this.headMesh.material = faceMats;
 
-    // Голова следует за наклоном взгляда.
-    head.rotation.x = p.pitch * 0.85;
+    // Голова следует за наклоном взгляда и чуть поднимается, когда тело вытянуто для плавания.
+    head.rotation.x = p.pitch * 0.85 + (swimming ? 0.2 : 0);
     head.rotation.z = Math.sin(this.time * 0.7) * 0.01;
 
     let legSwing = 0;
@@ -610,27 +615,14 @@ export class PlayerModel {
     let kneeLFlex = 0;
     let kneeRFlex = 0;
     let lean = 0;
+    let swimRoll = 0;
     let bob = Math.sin(this.time * 1.8) * 0.008; // дыхание
     armL.rotation.z = -0.07;
     armR.rotation.z = 0.07;
     legL.rotation.x = 0;
     legR.rotation.x = 0;
 
-    if (p.inWater) {
-      // Плавание: руки гребут по очереди, ноги быстро «ножницами», корпус наклонён.
-      this.walkPhase += dt * 8;
-      armSwing = Math.sin(this.walkPhase) * 1.35;
-      armL.rotation.x = armSwing;
-      armR.rotation.x = -armSwing;
-      elbowLFlex = 0.22;
-      elbowRFlex = 0.22;
-      legL.rotation.x = Math.sin(this.walkPhase * 1.4) * 0.4;
-      legR.rotation.x = -legL.rotation.x;
-      kneeLFlex = 0.14;
-      kneeRFlex = 0.14;
-      lean = -0.5;
-      bob = Math.sin(this.time * 2.4) * 0.03;
-    } else if (p.flying) {
+    if (p.flying) {
       // Парение: руки слегка назад, ноги вытянуты, лёгкое покачивание.
       armL.rotation.x = 0.3 + Math.sin(this.time * 2) * 0.05;
       armR.rotation.x = 0.3 - Math.sin(this.time * 2) * 0.05;
@@ -642,6 +634,41 @@ export class PlayerModel {
       kneeRFlex = 0.05;
       lean = -0.08;
       bob = Math.sin(this.time * 2) * 0.035;
+    } else if (swimming) {
+      // Кроль: корпус вытягивается вперёд, руки гребут навстречу друг другу,
+      // а ноги делают короткий частый «флаттер» вместо шага.
+      this.swimPhase += dt * (2.4 + swimEffort * 3.8);
+      const stroke = Math.sin(this.swimPhase);
+      const flutter = Math.sin(this.swimPhase * 2.1);
+      const recoveryLeft = Math.max(0, stroke);
+      const recoveryRight = Math.max(0, -stroke);
+
+      if (swimEffort > 0.12) {
+        armL.rotation.x = 0.18 + stroke * 0.78 * swimEffort;
+        armR.rotation.x = 0.18 - stroke * 0.78 * swimEffort;
+        elbowLFlex = 0.12 + recoveryLeft * 0.4 * swimEffort;
+        elbowRFlex = 0.12 + recoveryRight * 0.4 * swimEffort;
+        legL.rotation.x = 0.04 + flutter * 0.17 * swimEffort;
+        legR.rotation.x = 0.04 + Math.sin(this.swimPhase * 2.1 + 0.55) * 0.17 * swimEffort;
+        kneeLFlex = 0.04 + Math.max(0, -flutter) * 0.12 * swimEffort;
+        kneeRFlex = 0.04 + Math.max(0, -Math.sin(this.swimPhase * 2.1 + 0.55)) * 0.12 * swimEffort;
+      } else {
+        // На месте персонаж спокойно держится на воде, не продолжая быстро «идти» ногами.
+        const tread = Math.sin(this.time * 2.2);
+        armL.rotation.x = 0.08 + tread * 0.06;
+        armR.rotation.x = 0.08 - tread * 0.06;
+        legL.rotation.x = Math.sin(this.time * 3.1) * 0.055;
+        legR.rotation.x = Math.sin(this.time * 3.1 + 0.45) * 0.055;
+        elbowLFlex = 0.12;
+        elbowRFlex = 0.12;
+        kneeLFlex = 0.035;
+        kneeRFlex = 0.035;
+      }
+
+      lean = -0.72 - 0.28 * swimEffort;
+      swimRoll = stroke * 0.045 * swimEffort;
+      // Поднимаем модель относительно ног: голова остаётся у поверхности, а не уходит под воду.
+      bob = 0.55 + Math.sin(this.time * 2.4) * (0.012 + 0.012 * swimEffort);
     } else if (!p.onGround) {
       // Прыжок/падение: руки в стороны, ноги согнуты по-разному.
       const falling = p.vy < -2;
@@ -657,9 +684,11 @@ export class PlayerModel {
       kneeRFlex = falling ? 0.1 : 0.18;
       lean = falling ? 0.04 : -0.06;
     } else if (this.smoothSpeed > 0.15) {
-      // Ходьба/бег: фаза шага от реальной скорости, амплитуда растёт со скоростью.
-      this.walkPhase += dt * (3 + this.smoothSpeed * 1.9);
-      const amp = Math.min(1, this.smoothSpeed / 4.3) * 0.72;
+      // На суше — обычный шаг; стоя на дне — более короткие и медленные шаги в воде.
+      const wading = p.inWater;
+      const strideScale = wading ? 0.62 : 1;
+      this.walkPhase += dt * (3 + this.smoothSpeed * 1.9) * (wading ? 0.82 : 1);
+      const amp = Math.min(1, this.smoothSpeed / 4.3) * 0.72 * strideScale;
       legSwing = Math.sin(this.walkPhase) * amp;
       armSwing = Math.sin(this.walkPhase) * amp * 0.8;
       legL.rotation.x = legSwing;
@@ -670,8 +699,8 @@ export class PlayerModel {
       elbowRFlex = 0.08 + Math.abs(armSwing) * 0.18;
       kneeLFlex = Math.max(0, -legSwing) * 0.58;
       kneeRFlex = Math.max(0, legSwing) * 0.58;
-      lean = this.smoothSpeed > 5 ? -0.14 : -0.05;
-      bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * Math.min(1, this.smoothSpeed / 4.3);
+      lean = wading ? -0.015 : this.smoothSpeed > 5 ? -0.14 : -0.05;
+      bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * Math.min(1, this.smoothSpeed / 4.3) * (wading ? 0.45 : 1);
     } else {
       armL.rotation.x = Math.sin(this.time * 1.8) * 0.045;
       armR.rotation.x = -Math.sin(this.time * 1.8) * 0.045;
@@ -697,9 +726,11 @@ export class PlayerModel {
     kneeR.rotation.x = kneeRFlex;
     this.body.position.y = bob;
     this.body.rotation.x = lean;
-    this.body.rotation.z = p.onGround && this.smoothSpeed > 0.15
-      ? Math.sin(this.walkPhase) * 0.025
-      : 0;
+    this.body.rotation.z = swimming
+      ? swimRoll
+      : p.onGround && this.smoothSpeed > 0.15
+        ? Math.sin(this.walkPhase) * 0.025
+        : 0;
   }
 
   dispose(): void {
