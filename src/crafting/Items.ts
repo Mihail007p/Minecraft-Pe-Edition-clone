@@ -12,7 +12,8 @@ export interface ItemDef {
 }
 
 // Предметы не записываются в Uint8Array мира. Старые ID блоков не меняются.
-export const ITEMS: ItemDef[] = BLOCKS.filter(b => b.id !== 0).map(b => ({
+// Служебные блоки (текущая вода, воздух) предметами не становятся.
+export const ITEMS: ItemDef[] = BLOCKS.filter(b => b.inCreative).map(b => ({
   id: b.id, key: b.key, name: b.name, maxStack: 64, category: 'building', blockId: b.id,
 }));
 let nextId = 256;

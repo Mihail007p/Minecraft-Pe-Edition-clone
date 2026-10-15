@@ -1,4 +1,4 @@
-import { BLOCKS, COAL_ORE, COBBLESTONE, DIRT, GRASS, STONE, WATER } from '../world/Blocks.ts';
+import { BLOCKS, COAL_ORE, COBBLESTONE, DIRT, GRASS, STONE, isWater } from '../world/Blocks.ts';
 
 import { Crafting } from '../crafting/Crafting.ts';
 import { insert, itemId } from '../crafting/Items.ts';
@@ -27,7 +27,7 @@ export class Survival {
   get canSprint(): boolean { return this.hunger > 6; }
   count(id: number): number { return this.inventory.slots.reduce((n, s) => n + (s?.id === id ? s.count : 0), 0); }
   collect(id: number): number {
-    if (!BLOCKS[id]?.breakable || id === WATER) return 0;
+    if (!BLOCKS[id]?.breakable || isWater(id)) return 0;
     const drop = id === GRASS ? DIRT : id === STONE ? COBBLESTONE : id === COAL_ORE ? itemId('coal') : id;
     return insert(this.inventory.slots, { id: drop, count: 1 }) === 0 ? drop : 0;
   }

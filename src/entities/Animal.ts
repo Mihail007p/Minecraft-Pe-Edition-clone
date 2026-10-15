@@ -1,4 +1,4 @@
-import { BLOCK_SOLID, DIRT, GRASS, SNOW_GRASS, WATER } from '../world/Blocks.ts';
+import { BLOCK_SOLID, DIRT, GRASS, SNOW_GRASS, isWater } from '../world/Blocks.ts';
 import type { World } from '../world/World.ts';
 
 export type AnimalKind = 'cow' | 'pig' | 'sheep';
@@ -32,7 +32,7 @@ export class Animal {
       for (let bz = Math.floor(z - r); bz <= Math.floor(z + r); bz++) {
         if (!world.isChunkLoaded(bx, bz)) return false;
         for (let by = Math.floor(y + 0.001); by <= Math.floor(y + ANIMAL_SIZE[this.kind][1] - 0.001); by++) {
-          if (world.isSolidForPhysics(bx, by, bz) || world.getBlock(bx, by, bz) === WATER) return false;
+          if (world.isSolidForPhysics(bx, by, bz) || isWater(world.getBlock(bx, by, bz))) return false;
         }
       }
     }

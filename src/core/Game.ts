@@ -624,6 +624,7 @@ export class Game {
     while (this.accumulator >= FIXED_TIMESTEP) {
       const sprint = this.input.sprint && (this.mode === 'creative' || this.survival.canSprint);
       player.update(FIXED_TIMESTEP, { ...this.input, sprint }, s.autoJump);
+      world.water.update(FIXED_TIMESTEP);
       this.animals?.update(FIXED_TIMESTEP, player.x, player.z);
       this.attackCooldown = Math.max(0, this.attackCooldown - FIXED_TIMESTEP);
       this.mining.update(FIXED_TIMESTEP);

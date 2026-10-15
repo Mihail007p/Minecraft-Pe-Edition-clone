@@ -138,16 +138,79 @@ export const QUARTZ_BLOCK = define({ key: 'quartz_block', name: 'Кварцев�
 export const CHEST = define({ key: 'chest', name: 'Сундук', textures: { all: 'chest' } });
 export const FURNACE = define({ key: 'furnace', name: 'Печь', textures: { side: 'furnace_side', top: 'stone', bottom: 'stone' } });
 
+// --- Семейство воды ---
+// Источник (WATER) постоянен. Текущая вода F1..F7 — уровни растекания (1 у источника,
+// 7 — край разлива). WATER_FALL — падающий столб воды. Эти блоки служебные:
+// в инвентаре не показываются, добыть их нельзя.
+
+function flowingWater(level: number): number {
+  return define({
+    key: `water_f${level}`, name: 'Текущая вода', textures: { all: 'water' },
+    solid: false, opaque: false, shape: 'liquid', renderPass: 'water',
+    cullSame: true, replaceable: true, breakable: false, inCreative: false,
+  });
+}
+
+export const WATER_F1 = flowingWater(1);
+export const WATER_F2 = flowingWater(2);
+export const WATER_F3 = flowingWater(3);
+export const WATER_F4 = flowingWater(4);
+export const WATER_F5 = flowingWater(5);
+export const WATER_F6 = flowingWater(6);
+export const WATER_F7 = flowingWater(7);
+export const WATER_FALL = define({
+  key: 'water_fall', name: 'Падающая вода', textures: { all: 'water' },
+  solid: false, opaque: false, shape: 'liquid', renderPass: 'water',
+  cullSame: true, replaceable: true, breakable: false, inCreative: false,
+});
+
 export const BLOCKS: readonly BlockDef[] = defs;
 
 /** Быстрые таблицы свойств (индекс — id блока) для горячих циклов мешера/физики. */
 export const BLOCK_SOLID = new Uint8Array(256);
 export const BLOCK_OPAQUE = new Uint8Array(256);
 export const BLOCK_REPLACEABLE = new Uint8Array(256);
+export const BLOCK_IS_WATER = new Uint8Array(256);
+/** Уровень растекания воды: 0 — источник, 1..7 — текущая вода, 8 — падающий столб. */
+export const BLOCK_WATER_LEVEL = new Uint8Array(256);
 for (const b of defs) {
   BLOCK_SOLID[b.id] = b.solid ? 1 : 0;
   BLOCK_OPAQUE[b.id] = b.opaque ? 1 : 0;
   BLOCK_REPLACEABLE[b.id] = b.replaceable ? 1 : 0;
+}
+BLOCK_IS_WATER[WATER] = 1;
+BLOCK_WATER_LEVEL[WATER] = 0;
+const WATER_FLOW_BY_LEVEL: number[] = [WATER];
+for (const id of [WATER_F1, WATER_F2, WATER_F3, WATER_F4, WATER_F5, WATER_F6, WATER_F7]) {
+  const level = id - WATER_F1 + 1;
+  BLOCK_IS_WATER[id] = 1;
+  BLOCK_WATER_LEVEL[id] = level;
+  WATER_FLOW_BY_LEVEL[level] = id;
+}
+BLOCK_IS_WATER[WATER_FALL] = 1;
+BLOCK_WATER_LEVEL[WATER_FALL] = 8;
+
+/** Любой блок воды: источник, текущая вода или падающий столб. */
+export function isWater(id: number): boolean {
+  return BLOCK_IS_WATER[id] === 1;
+}
+
+/** id текущей воды уровня 1..7 (0 — источник). */
+export function waterFlowId(level: number): number {
+  return WATER_FLOW_BY_LEVEL[Math.max(0, Math.min(7, level))];
+}
+
+/** Уровень растекания блока воды (см. BLOCK_WATER_LEVEL). */
+export function waterLevel(id: number): number {
+  return BLOCK_WATER_LEVEL[id];
+}
+
+/** Высота верхней поверхности воды в блоке (1 — полный блок). */
+export function liquidSurfaceHeight(id: number): number {
+  if (id === WATER_FALL) return 1;
+  if (id === WATER) return 0.875;
+  const level = BLOCK_WATER_LEVEL[id];
+  return level >= 1 && level <= 7 ? 1 - 0.125 * level : 1;
 }
 
 /** Имя текстуры для заданной грани блока. */

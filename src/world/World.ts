@@ -1,6 +1,7 @@
 import { CHUNK_HEIGHT, CHUNK_SIZE, SEA_LEVEL } from '../config.ts';
-import { AIR, BLOCK_SOLID, WATER } from './Blocks.ts';
+import { AIR, BLOCK_SOLID, isWater } from './Blocks.ts';
 import { Chunk, chunkKey } from './Chunk.ts';
+import { WaterSim } from './Water.ts';
 import { WorldGen } from './WorldGen.ts';
 
 export interface BlockChange {
@@ -19,6 +20,8 @@ export interface BlockChange {
 export class World {
   readonly gen: WorldGen;
   readonly chunks = new Map<string, Chunk>();
+  /** Симуляция растекания воды. */
+  readonly water: WaterSim;
   /** Вызывается при выгрузке чанка (чтобы рендер удалил меш). */
   onChunkUnloaded: ((chunk: Chunk) => void) | null = null;
   /** Вызывается после изменения блока игроком. */
@@ -29,6 +32,7 @@ export class World {
 
   constructor(seed: number) {
     this.gen = new WorldGen(seed);
+    this.water = new WaterSim(this);
   }
 
   get seed(): number {
@@ -100,6 +104,8 @@ export class World {
     if (lx === 0 && lz === CHUNK_SIZE - 1) this.markDirty(cx - 1, cz + 1);
     if (lx === CHUNK_SIZE - 1 && lz === 0) this.markDirty(cx + 1, cz - 1);
     if (lx === CHUNK_SIZE - 1 && lz === CHUNK_SIZE - 1) this.markDirty(cx + 1, cz + 1);
+    // Вода пересчитывает растекание рядом с любым изменением блока.
+    this.water.schedule(x, y, z);
     this.onBlockChanged?.({ x, y, z, prev, next: id });
     return true;
   }
@@ -213,7 +219,7 @@ export class World {
       const topId = this.getBlock(bx, top, bz);
       if (BLOCK_SOLID[topId] !== 1) continue;
       if (BLOCK_SOLID[this.getBlock(bx, top + 1, bz)] === 1 || BLOCK_SOLID[this.getBlock(bx, top + 2, bz)] === 1) continue;
-      if (this.getBlock(bx, top + 1, bz) === WATER) continue;
+      if (isWater(this.getBlock(bx, top + 1, bz))) continue;
       let flat = true;
       for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         if (!this.isChunkLoaded(bx + nx, bz + nz)) { flat = false; break; }
