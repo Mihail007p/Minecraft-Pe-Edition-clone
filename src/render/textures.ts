@@ -290,15 +290,46 @@ const generators: Record<string, Generator> = {
   },
 
   leaves(t, rng) {
-    const b = blotch(rng, 4);
-    for (let y = 0; y < N; y++) {
-      for (let x = 0; x < N; x++) {
-        if (rng() < 0.2) { t.set(x, y, c(0, 0, 0, 0)); continue; }
-        const d = b(x, y) * 18 + (rng() * 2 - 1) * 14;
-        t.set(x, y, add(COL.leaves, d));
+    t.fill(c(COL.leaves[0], COL.leaves[1], COL.leaves[2], 0));
+    // Ажурная крона: отдельные листья и тонкие веточки с живыми сквозными просветами между ними.
+    const kind = new Uint8Array(N * N);
+    const put = (x: number, y: number, k: number) => {
+      const px = ((x % N) + N) % N;
+      const py = ((y % N) + N) % N;
+      const i = px + py * N;
+      if (k > kind[i]) kind[i] = k;
+    };
+    for (const [tx, ty] of [[4, 3], [5, 4], [11, 7], [12, 8], [3, 12], [4, 13], [13, 1], [14, 2]]) {
+      put(tx, ty, 4);
+    }
+    const clusters = [
+      [1, 0, 0], [6, 0, 1], [11, 1, 0], [15, 2, 1],
+      [3, 4, 1], [8, 3, 0], [13, 5, 0], [0, 6, 1],
+      [5, 7, 0], [10, 8, 1], [15, 9, 0], [2, 10, 0],
+      [7, 11, 1], [12, 12, 0], [1, 14, 1], [6, 14, 0], [10, 14, 1], [14, 14, 0],
+    ];
+    for (const [lx, ly, dir] of clusters) {
+      if (dir === 0) {
+        put(lx, ly, 3); put(lx + 1, ly, 3);
+        put(lx, ly + 1, 2); put(lx + 1, ly + 1, 2);
+        put(lx + 2, ly + 1, 1); put(lx + 1, ly + 2, 1);
+      } else {
+        put(lx, ly, 3); put(lx - 1, ly + 1, 3);
+        put(lx, ly + 1, 2); put(lx + 1, ly + 1, 1);
+        put(lx - 1, ly + 2, 2); put(lx, ly + 2, 1);
       }
     }
-    speckle(t, rng, 0.05, 22);
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const k = kind[x + y * N];
+        if (k === 0) continue;
+        const d = (rng() * 2 - 1) * 6;
+        if (k === 4) t.set(x, y, add(c(98, 74, 42, 242), d));
+        else if (k === 1) t.set(x, y, add(c(44, 96, 24, 205), d));
+        else if (k === 2) t.set(x, y, add(c(62, 128, 34, 235), d));
+        else t.set(x, y, add(c(86, 158, 44, 248), d));
+      }
+    }
   },
 
   glass(t) {

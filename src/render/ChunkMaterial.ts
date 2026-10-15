@@ -57,7 +57,9 @@ export interface ChunkMaterials {
 }
 
 export function createChunkMaterials(atlas: DataArrayTexture): ChunkMaterials {
-  const make = (alphaTest: number, opacity: number, transparent: boolean, doubleSide: boolean) =>
+  const make = (
+    alphaTest: number, opacity: number, transparent: boolean, doubleSide: boolean, depthWrite = !transparent,
+  ) =>
     // three.js сам компилирует под GLSL ES 3.00 (WebGL2), поэтому sampler2DArray доступен,
     // а gl_FragColor отображается на выходную переменную.
     new ShaderMaterial({
@@ -73,12 +75,12 @@ export function createChunkMaterials(atlas: DataArrayTexture): ChunkMaterials {
         uAmbient: { value: 1 },
       },
       transparent,
-      depthWrite: !transparent,
+      depthWrite,
       side: doubleSide ? DoubleSide : FrontSide,
     });
 
   const opaque = make(0, 1, false, false);
-  const cutout = make(0.5, 1, false, true);
+  const cutout = make(0.5, 1, true, true, true);
   const water = make(0, 1, true, true);
   const all = [opaque, cutout, water];
 
