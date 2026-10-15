@@ -5,6 +5,7 @@ import {
   FLY_SPEED, FLY_VERTICAL_SPEED, GRAVITY, JUMP_VELOCITY, PLAYER_EYE_HEIGHT, PLAYER_HEIGHT,
   PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_ACCEL, WATER_DRAG,
   WATER_EXIT_VELOCITY, WATER_FLOAT_SPEED, WATER_JUMP_VELOCITY, WATER_RISE_SPEED, WATER_SWIM_SPEED,
+  WATER_SINK_SPEED,
 } from '../config.ts';
 import { isWater } from '../world/Blocks.ts';
 import type { World } from '../world/World.ts';
@@ -130,6 +131,8 @@ export class Player {
       // Подтягиваемся на берег/блок: короткий устойчивый подъём.
       this.climbTimer = Math.max(0, this.climbTimer - dt);
       this.vy += (WATER_EXIT_VELOCITY - this.vy) * (1 - Math.exp(-8 * dt));
+      // После подъема встаем на блок (как в PE: автоматически встает на блоки высотой 1)
+      if (this.climbTimer <= 0) this.onGround = true;
     } else if (this.flying) {
       const target = (input.jump ? 1 : 0) - (input.sneak ? 1 : 0);
       this.vy += (target * FLY_VERTICAL_SPEED - this.vy) * (1 - Math.exp(-14 * dt));
@@ -143,7 +146,7 @@ export class Player {
         // У поверхности — выпрыгиваем из воды, глубже — всплываем.
         this.vy += ((atSurface ? WATER_JUMP_VELOCITY : WATER_SWIM_SPEED + 1) - this.vy) * k;
       } else if (input.sneak) {
-        this.vy += (-WATER_SWIM_SPEED - this.vy) * k; // нырять
+        this.vy += (-WATER_SINK_SPEED - this.vy) * k; // нырять быстрее
       } else {
         const moving = Math.hypot(this.vx, this.vz) > 0.5 && !this.onGround;
         if (moving) {

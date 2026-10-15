@@ -27,6 +27,10 @@ export const WATER_RISE_SPEED = 1.6; // плавучесть под водой: 
 export const WATER_FLOAT_SPEED = 0.25; // дрейф у поверхности (голова над водой)
 export const WATER_JUMP_VELOCITY = 7.2; // выпрыгивание из воды у поверхности
 export const WATER_EXIT_VELOCITY = 9.0; // подтягивание на берег/блок при выходе из воды
+// Новые константы плавания (оригинальный Minecraft feel)
+export const WATER_SPRINT_SWIM_SPEED = 5.5; // скорость спринт-плавания
+export const WATER_SINK_SPEED = 4.0; // скорость быстрого погружения (удержание sneak)
+export const WATER_ASCEND_SPEED = 4.5; // скорость всплывания (ジャンプ)
 export const REACH_DISTANCE = 5.5; // дальность взаимодействия с блоками
 
 // --- Камера от третьего лица ---
