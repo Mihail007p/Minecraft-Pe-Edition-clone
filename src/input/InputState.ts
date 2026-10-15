@@ -36,6 +36,7 @@ export interface InputActions {
   selectHotbar(index: number): void;
   scrollHotbar(delta: number): void;
   toggleFly(): void;
+  cycleCamera?(): void;
   togglePause(): void;
   toggleInventory(): void;
 }

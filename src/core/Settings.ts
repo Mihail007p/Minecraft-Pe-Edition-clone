@@ -1,4 +1,6 @@
-import { DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY, type GameSettings } from '../config.ts';
+import {
+  CAMERA_VIEW_ORDER, DEFAULT_SETTINGS, SETTINGS_STORAGE_KEY, type CameraView, type GameSettings,
+} from '../config.ts';
 
 type Listener = (settings: GameSettings) => void;
 
@@ -51,6 +53,12 @@ export class Settings {
       const src = parsed as Record<string, unknown>;
       for (const key of Object.keys(DEFAULT_SETTINGS) as (keyof GameSettings)[]) {
         const v = src[key];
+        // Вид камеры принимаем только из известного списка: битое/устаревшее
+        // значение в localStorage не должно попадать в игру как есть.
+        if (key === 'cameraView') {
+          if ((CAMERA_VIEW_ORDER as readonly unknown[]).includes(v)) out.cameraView = v as CameraView;
+          continue;
+        }
         if (typeof v === typeof DEFAULT_SETTINGS[key]) {
           (out as Record<string, unknown>)[key] = v;
         }
