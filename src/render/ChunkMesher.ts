@@ -3,7 +3,7 @@
 // на выходе типизированные массивы, которые рендер заворачивает в BufferGeometry.
 
 import { CHUNK_HEIGHT, CHUNK_SIZE } from '../config.ts';
-import { AIR, BLOCKS, BLOCK_OPAQUE, type BlockDef } from '../world/Blocks.ts';
+import { AIR, BLOCKS, BLOCK_OPAQUE, isWater, liquidSurfaceHeight, type BlockDef } from '../world/Blocks.ts';
 import type { Chunk } from '../world/Chunk.ts';
 import { BLOCK_FACE_LAYER, fillFaceLayers } from './faceLayers.ts';
 
@@ -185,8 +185,9 @@ export class ChunkMesher {
 
   private addCube(builder: MeshBuilder, x: number, y: number, z: number, id: number, def: BlockDef): void {
     const isLiquid = def.shape === 'liquid';
-    const aboveSame = isLiquid && this.get(x, y + 1, z) === id;
-    const topY = isLiquid && !aboveSame ? 0.875 : 1;
+    // Погружённая вода (над ней ещё вода) занимает весь блок, иначе — уровень поверхности.
+    const aboveIsWater = isLiquid && isWater(this.get(x, y + 1, z));
+    const topY = isLiquid ? (aboveIsWater ? 1 : liquidSurfaceHeight(id)) : 1;
 
     for (let f = 0; f < 6; f++) {
       const face = FACES[f];
@@ -196,7 +197,7 @@ export class ChunkMesher {
       const nId = this.get(nx, ny, nz);
       // Непрозрачный сосед полностью закрывает грань; одинаковые соседи (вода, стекло) не рисуют стык.
       if (BLOCK_OPAQUE[nId] === 1) continue;
-      if (nId === id && def.cullSame) continue;
+      if (def.cullSame && (nId === id || (isLiquid && isWater(nId)))) continue;
 
       const layer = BLOCK_FACE_LAYER[id * 6 + f];
       const bx = x + face.base[0];

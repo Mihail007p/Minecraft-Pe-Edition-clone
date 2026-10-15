@@ -3,10 +3,10 @@
 
 import {
   FLY_SPEED, FLY_VERTICAL_SPEED, GRAVITY, JUMP_VELOCITY, PLAYER_EYE_HEIGHT, PLAYER_HEIGHT,
-  PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_DRAG, WATER_GRAVITY,
-  WATER_SWIM_SPEED,
+  PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_ACCEL, WATER_DRAG,
+  WATER_EXIT_VELOCITY, WATER_FLOAT_SPEED, WATER_JUMP_VELOCITY, WATER_RISE_SPEED, WATER_SWIM_SPEED,
 } from '../config.ts';
-import { WATER } from '../world/Blocks.ts';
+import { isWater } from '../world/Blocks.ts';
 import type { World } from '../world/World.ts';
 
 export interface MoveInput {
@@ -40,6 +40,8 @@ export class Player {
   headInWater = false;
   landedDistance = 0;
   private fallTop = 0;
+  /** Ещё действует подтягивание на берег после выхода из воды. */
+  private climbTimer = 0;
   private world: World;
 
   constructor(world: World) {
@@ -54,6 +56,7 @@ export class Player {
     this.fallTop = y;
     this.landedDistance = 0;
     this.onGround = false;
+    this.climbTimer = 0;
   }
 
   rotate(dyaw: number, dpitch: number): void {
@@ -86,8 +89,8 @@ export class Player {
     const world = this.world;
     const feetBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + 0.3), Math.floor(this.z));
     const midBlock = world.getBlock(Math.floor(this.x), Math.floor(this.y + 1.0), Math.floor(this.z));
-    this.inWater = feetBlock === WATER || midBlock === WATER;
-    this.headInWater = world.getBlock(Math.floor(this.x), Math.floor(this.eyeY), Math.floor(this.z)) === WATER;
+    this.inWater = isWater(feetBlock) || isWater(midBlock);
+    this.headInWater = isWater(world.getBlock(Math.floor(this.x), Math.floor(this.eyeY), Math.floor(this.z)));
 
     if (this.flying || this.inWater || this.onGround) this.fallTop = this.y;
     this.fallTop = Math.max(this.fallTop, this.y);
@@ -123,16 +126,38 @@ export class Player {
     this.vz += (wz * speed - this.vz) * k;
 
     // --- Вертикаль ---
-    if (this.flying) {
+    if (this.climbTimer > 0) {
+      // Подтягиваемся на берег/блок: короткий устойчивый подъём.
+      this.climbTimer = Math.max(0, this.climbTimer - dt);
+      this.vy += (WATER_EXIT_VELOCITY - this.vy) * (1 - Math.exp(-8 * dt));
+    } else if (this.flying) {
       const target = (input.jump ? 1 : 0) - (input.sneak ? 1 : 0);
       this.vy += (target * FLY_VERTICAL_SPEED - this.vy) * (1 - Math.exp(-14 * dt));
     } else if (this.inWater) {
-      this.vy -= WATER_GRAVITY * dt;
-      if (input.jump) this.vy += (WATER_SWIM_SPEED + 1 - this.vy) * (1 - Math.exp(-6 * dt));
+      const atSurface = !this.headInWater;
+      const k = 1 - Math.exp(-WATER_ACCEL * dt);
+      if (input.jump && this.onGround) {
+        // Прыжок со дна/мелководья — например, чтобы выбраться на берег.
+        this.vy = JUMP_VELOCITY * 0.75;
+      } else if (input.jump) {
+        // У поверхности — выпрыгиваем из воды, глубже — всплываем.
+        this.vy += ((atSurface ? WATER_JUMP_VELOCITY : WATER_SWIM_SPEED + 1) - this.vy) * k;
+      } else if (input.sneak) {
+        this.vy += (-WATER_SWIM_SPEED - this.vy) * k; // нырять
+      } else {
+        const moving = Math.hypot(this.vx, this.vz) > 0.5 && !this.onGround;
+        if (moving) {
+          // Плывём в направлении взгляда: смотрим вниз — ныряем, вверх — всплываем.
+          const target = Math.sin(this.pitch) * WATER_SWIM_SPEED + (atSurface ? WATER_FLOAT_SPEED * 2 : 0.3);
+          this.vy += (target - this.vy) * (1 - Math.exp(-4 * dt));
+        } else if (!this.onGround) {
+          // Плавучесть: глубоко вода держит и тянет вверх, у поверхности — дрейф.
+          const target = atSurface ? WATER_FLOAT_SPEED : WATER_RISE_SPEED;
+          this.vy += (target - this.vy) * k;
+        }
+      }
       this.vy *= Math.max(0, 1 - WATER_DRAG * dt);
       if (this.vy < -4) this.vy = -4;
-      // Выпрыгивание из воды на берег
-      if (input.jump && this.onGround) this.vy = JUMP_VELOCITY * 0.6;
     } else {
       this.vy -= GRAVITY * dt;
       if (this.vy < -TERMINAL_VELOCITY) this.vy = -TERMINAL_VELOCITY;
@@ -157,18 +182,27 @@ export class Player {
     const hitX = this.sweep(0, dx);
     const hitZ = this.sweep(2, dz);
 
-    // Автопрыжок: упёрлись в блок высотой в один блок — запрыгиваем (как в Pocket Edition).
+    // Автопрыжок и выход из воды на берег (как в Pocket Edition).
     let stepped = false;
-    if ((hitX || hitZ) && autoJump && !this.flying && !this.inWater && (wasOnGround || this.onGround) && !input.sneak) {
-      const stepUp = 1.0 + EPS * 4;
-      const canStep =
-        !this.collides(prevX + dx, this.y + stepUp, prevZ + dz) &&
-        !this.collides(this.x, this.y + stepUp, this.z) &&
-        (Math.abs(dx) + Math.abs(dz)) > 0.0005;
-      if (canStep) {
-        this.vy = JUMP_VELOCITY * 0.95;
-        this.onGround = false;
-        stepped = true;
+    const moving = (Math.abs(dx) + Math.abs(dz)) > 0.0005;
+    if ((hitX || hitZ) && !this.flying && !input.sneak && moving) {
+      if (this.inWater) {
+        // Плавание: упёрлись в берег/блок — подтягиваемся наверх (автопрыжок или кнопка прыжка).
+        if ((autoJump || input.jump) && this.canClimbOutOfWater(dx, dz)) {
+          this.vy = Math.max(this.vy, WATER_EXIT_VELOCITY);
+          this.climbTimer = 0.3;
+          stepped = true;
+        }
+      } else if (autoJump && (wasOnGround || this.onGround)) {
+        const stepUp = 1.0 + EPS * 4;
+        const canStep =
+          !this.collides(prevX + dx, this.y + stepUp, prevZ + dz) &&
+          !this.collides(this.x, this.y + stepUp, this.z);
+        if (canStep) {
+          this.vy = JUMP_VELOCITY * 0.95;
+          this.onGround = false;
+          stepped = true;
+        }
       }
     }
     if (!stepped) {
@@ -187,6 +221,33 @@ export class Player {
   toggleFly(): void {
     this.flying = !this.flying;
     if (this.flying) this.vy = Math.max(this.vy, 0);
+  }
+
+  /**
+   * Можно ли залезть на блок/берег перед собой из воды: впереди есть твёрдая опора
+   * не выше ~2 блоков над ногами, а над ней есть место встать.
+   */
+  private canClimbOutOfWater(dx: number, dz: number): boolean {
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) return false;
+    const ux = dx / len;
+    const uz = dz / len;
+    const fx = Math.floor(this.x + ux * (HALF_W + 0.25));
+    const fz = Math.floor(this.z + uz * (HALF_W + 0.25));
+    // По грудь в воде можно подтянуться выше (помогает плавучесть).
+    const deep = isWater(this.world.getBlock(Math.floor(this.x), Math.floor(this.y + 1.0), Math.floor(this.z)));
+    const maxClimb = deep ? 2.2 : 1.2;
+    const baseY = Math.floor(this.y + 0.05);
+    for (let up = -1; up <= 2; up++) {
+      const by = baseY + up;
+      if (!this.world.isSolidForPhysics(fx, by, fz)) continue;
+      const standY = by + 1;
+      const rise = standY - this.y;
+      if (rise <= 0.05 || rise > maxClimb) continue;
+      if (this.collides(this.x + ux * 0.6, standY + 2 * EPS, this.z + uz * 0.6)) continue;
+      return true;
+    }
+    return false;
   }
 
   collides(x: number, y: number, z: number): boolean {

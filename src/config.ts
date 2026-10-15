@@ -2,7 +2,7 @@
 // Всё, что влияет на баланс/производительность, собрано здесь, чтобы было удобно подстраивать.
 
 export const GAME_TITLE = 'Minecraft PE Clone';
-export const GAME_VERSION = '0.3.0';
+export const GAME_VERSION = '0.4.0';
 
 // --- Мир ---
 export const CHUNK_SIZE = 16; // ширина/глубина чанка в блоках
@@ -20,9 +20,13 @@ export const FLY_VERTICAL_SPEED = 7.0;
 export const JUMP_VELOCITY = 8.6;
 export const GRAVITY = 28.0;
 export const TERMINAL_VELOCITY = 60.0;
-export const WATER_GRAVITY = 6.0;
 export const WATER_SWIM_SPEED = 3.0;
 export const WATER_DRAG = 0.8;
+export const WATER_ACCEL = 6.0; // скорость набора вертикальной скорости в воде
+export const WATER_RISE_SPEED = 1.6; // плавучесть под водой: всплытие без управления
+export const WATER_FLOAT_SPEED = 0.25; // дрейф у поверхности (голова над водой)
+export const WATER_JUMP_VELOCITY = 7.2; // выпрыгивание из воды у поверхности
+export const WATER_EXIT_VELOCITY = 9.0; // подтягивание на берег/блок при выходе из воды
 export const REACH_DISTANCE = 5.5; // дальность взаимодействия с блоками
 
 // --- Камера от третьего лица ---
@@ -41,6 +45,10 @@ export const DOUBLE_TAP_MS = 300; // окно для двойного нажат
 export const MAX_PIXEL_RATIO = 2;
 export const FIXED_TIMESTEP = 1 / 60;
 export const MAX_SUBSTEPS = 5;
+
+// --- Растекание воды ---
+export const WATER_PULSE_INTERVAL = 0.1; // секунд между импульсами симуляции воды
+export const WATER_CELLS_PER_PULSE = 4; // ячеек обрабатывается за импульс
 
 // --- Настройки по умолчанию (сохраняются в localStorage) ---
 export interface GameSettings {
