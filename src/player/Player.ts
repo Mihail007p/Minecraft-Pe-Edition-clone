@@ -3,9 +3,9 @@
 
 import {
   CHUNK_HEIGHT, FLY_SPEED, FLY_VERTICAL_SPEED, GRAVITY, JUMP_VELOCITY, PLAYER_EYE_HEIGHT, PLAYER_HEIGHT,
-  PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_ACCEL, WATER_DRAG,
-  WATER_EXIT_VELOCITY, WATER_FLOAT_DEPTH, WATER_FLOAT_GAIN, WATER_JUMP_VELOCITY, WATER_RISE_SPEED,
-  WATER_SINK_SPEED, WATER_SWIM_SPEED,
+  PLAYER_WIDTH, SPRINT_SPEED, TERMINAL_VELOCITY, WALK_SPEED, WATER_ACCEL, WATER_CLIMB_SPEED, WATER_DRAG,
+  WATER_FLOAT_DEPTH, WATER_FLOAT_GAIN, WATER_JUMP_VELOCITY, WATER_RISE_SPEED, WATER_SINK_SPEED,
+  WATER_SWIM_SPEED,
 } from '../config.ts';
 import { isWater, liquidSurfaceHeight } from '../world/Blocks.ts';
 import type { World } from '../world/World.ts';
@@ -45,8 +45,10 @@ export class Player {
   private waterTopY = 0;
   landedDistance = 0;
   private fallTop = 0;
-  /** Ещё действует подтягивание на берег после выхода из воды. */
-  private climbTimer = 0;
+  /** Целевая высота ног при контролируемом подъёме на берег из воды. */
+  private climbTargetY: number | null = null;
+  private climbDirectionX = 0;
+  private climbDirectionZ = 0;
   private world: World;
 
   constructor(world: World) {
@@ -61,7 +63,7 @@ export class Player {
     this.fallTop = y;
     this.landedDistance = 0;
     this.onGround = false;
-    this.climbTimer = 0;
+    this.clearClimb();
   }
 
   rotate(dyaw: number, dpitch: number): void {
@@ -132,12 +134,11 @@ export class Player {
     this.vz += (wz * speed - this.vz) * k;
 
     // --- Вертикаль ---
-    if (this.climbTimer > 0) {
-      // Подтягиваемся на берег/блок: короткий устойчивый подъём.
-      this.climbTimer = Math.max(0, this.climbTimer - dt);
-      this.vy += (WATER_EXIT_VELOCITY - this.vy) * (1 - Math.exp(-8 * dt));
-      // После подъема встаем на блок (как в PE: автоматически встает на блоки высотой 1)
-      if (this.climbTimer <= 0) this.onGround = true;
+    if (this.climbTargetY !== null) {
+      // Поднимаемся только до верха выбранного блока: не задаём прыжковую скорость,
+      // которая после выхода на берег продолжала бы разгонять игрока вверх.
+      const remaining = this.climbTargetY - this.y;
+      this.vy = remaining > EPS ? Math.min(WATER_CLIMB_SPEED, remaining / Math.max(dt, EPS)) : 0;
     } else if (this.flying) {
       const target = (input.jump ? 1 : 0) - (input.sneak ? 1 : 0);
       this.vy += (target * FLY_VERTICAL_SPEED - this.vy) * (1 - Math.exp(-14 * dt));
@@ -188,9 +189,12 @@ export class Player {
     const prevX = this.x;
     const prevZ = this.z;
     this.onGround = false;
+    const climbing = this.climbTargetY !== null;
+    const verticalVelocity = this.vy;
     const hitY = this.sweep(1, this.vy * dt);
     if (hitY) {
       if (this.vy < 0) this.onGround = true;
+      if (climbing && verticalVelocity > 0) this.clearClimb(); // потолок/препятствие отменяет подъём
       this.vy = 0;
     }
     const dx = this.vx * dt;
@@ -199,14 +203,17 @@ export class Player {
     const hitZ = this.sweep(2, dz);
 
     // Автопрыжок и выход из воды на берег (как в Pocket Edition).
-    let stepped = false;
+    let stepped = this.climbTargetY !== null;
     const moving = (Math.abs(dx) + Math.abs(dz)) > 0.0005;
-    if ((hitX || hitZ) && !this.flying && !input.sneak && moving) {
+    if (this.climbTargetY === null && (hitX || hitZ) && !this.flying && !input.sneak && moving) {
       if (this.inWater) {
-        // Плавание: упёрлись в берег/блок — подтягиваемся наверх (автопрыжок или кнопка прыжка).
-        if ((autoJump || input.jump) && this.canClimbOutOfWater(dx, dz)) {
-          this.vy = Math.max(this.vy, WATER_EXIT_VELOCITY);
-          this.climbTimer = 0.3;
+        // У берега выбираем конкретную поверхность и поднимаемся ровно до неё.
+        const target = (autoJump || input.jump) ? this.climbOutTarget(dx, dz) : null;
+        if (target) {
+          this.climbTargetY = target.standY;
+          this.climbDirectionX = target.directionX;
+          this.climbDirectionZ = target.directionZ;
+          this.vy = 0;
           stepped = true;
         }
       } else if (autoJump && (wasOnGround || this.onGround)) {
@@ -224,6 +231,20 @@ export class Player {
     if (!stepped) {
       if (hitX) this.vx = 0;
       if (hitZ) this.vz = 0;
+    }
+
+    if (this.climbTargetY !== null && this.y >= this.climbTargetY - EPS) {
+      // Достигли верха: приземляемся на край, не продолжаем подъём по инерции.
+      const targetY = this.climbTargetY;
+      this.y = targetY;
+      this.vy = 0;
+      if (this.hasGroundSupport(this.x, targetY, this.z)) {
+        this.onGround = true;
+        this.clearClimb();
+      } else if (input.sneak || mlen < EPS || wx * this.climbDirectionX + wz * this.climbDirectionZ <= 0.05) {
+        // Не зависаем в воздухе, если игрок остановился или отходит от берега.
+        this.clearClimb();
+      }
     }
 
     if (this.onGround && !this.flying && !this.inWater) {
@@ -251,16 +272,25 @@ export class Player {
 
   toggleFly(): void {
     this.flying = !this.flying;
-    if (this.flying) this.vy = Math.max(this.vy, 0);
+    if (this.flying) {
+      this.clearClimb();
+      this.vy = Math.max(this.vy, 0);
+    }
+  }
+
+  private clearClimb(): void {
+    this.climbTargetY = null;
+    this.climbDirectionX = 0;
+    this.climbDirectionZ = 0;
   }
 
   /**
-   * Можно ли залезть на блок/берег перед собой из воды: впереди есть твёрдая опора
-   * не выше ~2 блоков над ногами, а над ней есть место встать.
+   * Ищет поверхность перед игроком, на которую можно подняться из воды,
+   * и возвращает высоту её верха и направление берега.
    */
-  private canClimbOutOfWater(dx: number, dz: number): boolean {
+  private climbOutTarget(dx: number, dz: number): { standY: number; directionX: number; directionZ: number } | null {
     const len = Math.hypot(dx, dz);
-    if (len < 1e-6) return false;
+    if (len < 1e-6) return null;
     const ux = dx / len;
     const uz = dz / len;
     const fx = Math.floor(this.x + ux * (HALF_W + 0.25));
@@ -277,7 +307,22 @@ export class Player {
       const rise = standY - this.y;
       if (rise <= 0.05 || rise > maxClimb) continue;
       if (this.collides(this.x + ux * 0.6, standY + 2 * EPS, this.z + uz * 0.6)) continue;
-      return true;
+      return { standY, directionX: ux, directionZ: uz };
+    }
+    return null;
+  }
+
+  /** Есть ли твёрдая опора непосредственно под ногами в заданной точке. */
+  private hasGroundSupport(x: number, y: number, z: number): boolean {
+    const by = Math.floor(y - EPS);
+    const minX = Math.floor(x - HALF_W + EPS);
+    const maxX = Math.floor(x + HALF_W - EPS);
+    const minZ = Math.floor(z - HALF_W + EPS);
+    const maxZ = Math.floor(z + HALF_W - EPS);
+    for (let bz = minZ; bz <= maxZ; bz++) {
+      for (let bx = minX; bx <= maxX; bx++) {
+        if (this.world.isSolidForPhysics(bx, by, bz)) return true;
+      }
     }
     return false;
   }
