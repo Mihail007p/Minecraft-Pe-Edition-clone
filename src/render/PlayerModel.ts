@@ -136,37 +136,58 @@ const PANTS = rgb(0x35479b);
 const PANTS_DARK = rgb(0x27336e);
 const ACCENT = rgb(0xf2a63b);
 
-function faceTexture(eyesOpen: boolean): Pix {
+type EyePose = 'open' | 'half' | 'closed';
+
+function faceTexture(eyePose: EyePose): Pix {
   const t = new Pix(32);
-  t.fill(SKIN, 0.07);
-  // Подбородок и скулы чуть темнее, лоб светлее.
-  t.rect(0, 0, 32, 7, SKIN_LIGHT);
-  t.rect(0, 26, 32, 6, shade(SKIN, 0.92));
-  t.rect(0, 12, 4, 12, shade(SKIN, 0.96));
-  t.rect(28, 12, 4, 12, shade(SKIN, 0.96));
-  // Румянец.
-  t.rect(4, 20, 5, 3, shade(SKIN, 1.04));
-  t.rect(23, 20, 5, 3, shade(SKIN, 1.04));
-  // Брови.
-  t.rect(7, 11, 7, 2, HAIR);
-  t.rect(18, 11, 7, 2, HAIR);
-  if (eyesOpen) {
-    for (const ex of [8, 19]) {
+  t.fill(SKIN, 0.05);
+  // Свет на лбу, мягкая тень по краям лица и под скулами.
+  t.rect(2, 0, 28, 6, SKIN_LIGHT);
+  t.rect(0, 8, 3, 17, shade(SKIN, 0.94));
+  t.rect(29, 8, 3, 17, shade(SKIN, 0.94));
+  t.rect(3, 24, 26, 5, shade(SKIN, 0.93));
+  t.rect(10, 29, 12, 2, shade(SKIN_DARK, 1.08));
+  // Щёки, лёгкий румянец и несколько веснушек для живого лица.
+  t.rect(3, 19, 5, 4, shade(SKIN, 1.06));
+  t.rect(24, 19, 5, 4, shade(SKIN, 1.06));
+  for (const [x, y] of [[5, 20], [7, 22], [25, 21], [27, 20]] as const) {
+    t.set(x, y, shade(SKIN_DARK, 1.08));
+  }
+  // Брови и складки над глазами.
+  t.rect(7, 10, 7, 2, HAIR);
+  t.rect(18, 10, 7, 2, HAIR);
+  t.rect(8, 12, 5, 1, shade(SKIN_DARK, 1.05));
+  t.rect(19, 12, 5, 1, shade(SKIN_DARK, 1.05));
+
+  for (const ex of [8, 19]) {
+    if (eyePose === 'open') {
       t.rect(ex, 14, 5, 5, rgb(0xf7f3e8)); // белок
       t.rect(ex + 1, 15, 3, 4, rgb(0x5b3a1e)); // радужка
       t.rect(ex + 2, 16, 2, 2, rgb(0x17100b)); // зрачок
       t.set(ex + 1, 15, rgb(0xffffff)); // блик
       t.rect(ex, 19, 5, 1, SKIN_DARK); // нижнее веко
+    } else if (eyePose === 'half') {
+      // Верхнее веко опускается, но часть радужки ещё видна.
+      t.rect(ex, 14, 5, 2, SKIN_LIGHT);
+      t.rect(ex, 16, 5, 3, rgb(0xf7f3e8));
+      t.rect(ex + 1, 16, 3, 3, rgb(0x5b3a1e));
+      t.rect(ex + 2, 17, 2, 2, rgb(0x17100b));
+      t.rect(ex, 19, 5, 1, SKIN_DARK);
+    } else {
+      // Закрытые веки — тёплая линия ресниц и светлая складка под ней.
+      t.rect(ex, 16, 5, 1, SKIN_DARK);
+      t.rect(ex + 1, 17, 3, 1, SKIN_LIGHT);
     }
-  } else {
-    t.rect(8, 16, 5, 1, SKIN_DARK);
-    t.rect(19, 16, 5, 1, SKIN_DARK);
   }
-  // Нос и рот.
-  t.rect(15, 18, 2, 5, SKIN_DARK);
+
+  // Нос, фильтрум и рот с небольшой тенью под нижней губой.
+  t.rect(14, 17, 2, 5, shade(SKIN, 0.92));
+  t.rect(16, 19, 2, 4, SKIN_LIGHT);
   t.rect(14, 22, 4, 1, SKIN_DARK);
-  t.rect(12, 26, 8, 1, rgb(0x8a5638));
-  t.rect(13, 27, 6, 1, shade(SKIN, 0.9));
+  t.rect(13, 24, 6, 1, shade(SKIN_DARK, 1.08));
+  t.rect(12, 25, 8, 1, rgb(0x8a5638));
+  t.rect(13, 26, 6, 1, rgb(0xb96d59));
+  t.rect(14, 27, 4, 1, shade(SKIN, 0.92));
   return t;
 }
 
@@ -194,6 +215,17 @@ function hairTopTexture(): Pix {
   t.fill(HAIR, 0.1);
   for (let i = 0; i < 8; i++) t.rect(2 + i * 4, 3 + (i % 3) * 8, 2, 9, HAIR_LIGHT); // пряди
   t.rect(0, 0, 32, 3, HAIR_LIGHT);
+  return t;
+}
+
+function hairPanelTexture(): Pix {
+  const t = new Pix(16);
+  t.fill(HAIR, 0.1);
+  for (let x = 2; x < 16; x += 4) {
+    t.rect(x, 1 + (x % 3), 1, 12, HAIR_LIGHT);
+    t.set(x + 1, 8 + (x % 4), shade(HAIR, 1.22));
+  }
+  t.rect(0, 14, 16, 2, shade(HAIR, 0.82));
   return t;
 }
 
@@ -240,17 +272,29 @@ function pantsTexture(): Pix {
   return t;
 }
 
-function skinTexture(dark = false): Pix {
+function skinTexture(part: 'base' | 'forearm' | 'neck' = 'base'): Pix {
   const t = new Pix(16);
-  t.fill(dark ? SKIN_DARK : SKIN, 0.07);
+  t.fill(SKIN, 0.06);
+  t.rect(0, 0, 16, 2, SKIN_LIGHT);
+  t.rect(0, 14, 16, 2, shade(SKIN, 0.9));
+  if (part === 'forearm') {
+    t.rect(2, 3, 2, 9, SKIN_LIGHT); // мягкий блик по внешней стороне руки
+    t.rect(11, 5, 2, 7, shade(SKIN, 0.94));
+    t.rect(4, 11, 7, 1, SKIN_DARK); // складка запястья
+  } else if (part === 'neck') {
+    t.rect(1, 2, 3, 12, shade(SKIN, 0.88));
+    t.rect(11, 2, 3, 12, SKIN_LIGHT);
+  }
   return t;
 }
 
 function handTexture(): Pix {
   const t = new Pix(16);
-  t.fill(SKIN, 0.07);
-  for (const x of [4, 8, 12]) t.rect(x, 8, 1, 8, SKIN_DARK); // пальцы
-  t.rect(0, 6, 16, 1, SKIN_DARK); // костяшки
+  t.fill(SKIN, 0.06);
+  t.rect(1, 2, 14, 3, SKIN_LIGHT); // костяшки
+  t.rect(2, 7, 12, 1, shade(SKIN_DARK, 1.04));
+  t.rect(3, 9, 10, 1, shade(SKIN, 0.9)); // складки ладони
+  t.rect(4, 12, 8, 1, SKIN_DARK);
   return t;
 }
 
@@ -260,8 +304,12 @@ interface PartRefs {
   head: Group;
   armL: Group;
   armR: Group;
+  elbowL: Group;
+  elbowR: Group;
   legL: Group;
   legR: Group;
+  kneeL: Group;
+  kneeR: Group;
 }
 
 /** Детальная модель игрока: голова с лицом и причёской, одежда, рюкзак, анимации. */
@@ -273,6 +321,7 @@ export class PlayerModel {
   private heldMesh!: Mesh;
   private heldBlockId = -1;
   private headMatsOpen: Material[];
+  private headMatsHalf: Material[];
   private headMatsClosed: Material[];
   private geometry: BoxGeometry;
   private materials = new Set<Material>();
@@ -284,6 +333,8 @@ export class PlayerModel {
   private actionTime = Number.POSITIVE_INFINITY;
   private blinkLeft = 0;
   private nextBlink = 1.8;
+  private blinkCount = 0;
+  private readonly blinkDuration = 0.16;
 
   constructor() {
     this.geometry = new BoxGeometry(1, 1, 1);
@@ -298,14 +349,18 @@ export class PlayerModel {
     this.root.name = 'player-model';
 
     // --- Материалы ---
-    const faceOpen = this.texMat(faceTexture(true));
-    const faceClosed = this.texMat(faceTexture(false));
+    const faceOpen = this.texMat(faceTexture('open'));
+    const faceHalf = this.texMat(faceTexture('half'));
+    const faceClosed = this.texMat(faceTexture('closed'));
     const headSide = this.texMat(headSideTexture());
     const headBack = this.texMat(headBackTexture());
     const hairTop = this.texMat(hairTopTexture());
     const skinMat = this.texMat(skinTexture());
+    const neckMat = this.texMat(skinTexture('neck'));
+    const forearmMat = this.texMat(skinTexture('forearm'));
     // Порядок граней BoxGeometry: +X, −X, +Y, −Y, +Z(спина), −Z(лицо).
     this.headMatsOpen = [headSide, headSide, hairTop, skinMat, headBack, faceOpen];
+    this.headMatsHalf = [headSide, headSide, hairTop, skinMat, headBack, faceHalf];
     this.headMatsClosed = [headSide, headSide, hairTop, skinMat, headBack, faceClosed];
     const torsoFront = this.texMat(torsoTexture(false));
     const torsoBack = this.texMat(torsoTexture(true));
@@ -314,49 +369,64 @@ export class PlayerModel {
     const sleeveMat = this.texMat(sleeveTexture());
     const pantsMat = this.texMat(pantsTexture());
     const handMat = this.texMat(handTexture());
+    const hairPanelMat = this.texMat(hairPanelTexture());
     const hairMat = this.solid(HAIR);
     const hairLightMat = this.solid(HAIR_LIGHT);
 
-    // --- Ноги (точка поворота — бедро, y=0.68) ---
-    const makeLeg = (side: -1 | 1): Group => {
+    // --- Ноги: отдельные колено, голень и ботинок для живого шага ---
+    const makeLeg = (side: -1 | 1): { leg: Group; knee: Group } => {
       const leg = new Group();
       leg.name = side < 0 ? 'leg-left' : 'leg-right';
       leg.position.set(side * 0.13, 0.68, 0);
-      this.box(leg, pantsMat, [0.24, 0.56, 0.26], [0, -0.3, 0], 'thigh');
-      this.box(leg, this.solid(PANTS_DARK), [0.26, 0.08, 0.28], [0, -0.56, 0], 'cuff');
-      // Ботинок: подошва, носок, задник и шнурки отдельными деталями.
+      this.box(leg, pantsMat, [0.24, 0.37, 0.27], [0, -0.185, 0], 'thigh');
+      this.box(leg, this.solid(PANTS_DARK), [0.245, 0.055, 0.28], [0, -0.35, 0], 'knee-seam');
+
+      const knee = new Group();
+      knee.name = side < 0 ? 'knee-left' : 'knee-right';
+      knee.position.set(0, -0.36, 0);
+      leg.add(knee);
+      this.box(knee, pantsMat, [0.22, 0.28, 0.24], [0, -0.14, 0], 'shin');
+      this.box(knee, this.solid(PANTS_DARK), [0.23, 0.07, 0.25], [0, -0.265, 0], 'cuff');
+      this.box(knee, this.solid(0x4659a8), [0.13, 0.09, 0.014], [0, -0.13, -0.124], 'kneepad');
+      this.box(knee, this.solid(0x7482c2), [0.09, 0.012, 0.01], [0, -0.09, -0.134], 'kneepad-seam');
+
       const shoe = new Group();
       shoe.name = 'shoe';
-      shoe.position.set(0, -0.62, 0);
-      this.box(shoe, this.solid(0x2e2a26), [0.27, 0.07, 0.44], [0, -0.035, -0.05], 'sole');
-      this.box(shoe, this.solid(0x4a423a), [0.26, 0.1, 0.4], [0, 0.03, -0.04], 'shoe-body');
-      this.box(shoe, this.solid(0x6b5d4f), [0.26, 0.08, 0.14], [0, 0.035, -0.2], 'toe');
-      this.box(shoe, this.solid(0xe8e2d4), [0.18, 0.025, 0.05], [0, 0.09, -0.13], 'lace-1');
-      this.box(shoe, this.solid(0xe8e2d4), [0.18, 0.025, 0.05], [0, 0.09, -0.05], 'lace-2');
-      leg.add(shoe);
+      shoe.position.set(0, -0.26, 0);
+      this.box(shoe, this.solid(0x2e2a26), [0.27, 0.07, 0.44], [0, -0.025, -0.04], 'sole');
+      this.box(shoe, this.solid(0x4a423a), [0.25, 0.13, 0.38], [0, 0.045, -0.035], 'shoe-body');
+      this.box(shoe, this.solid(0x6b5d4f), [0.25, 0.09, 0.14], [0, 0.035, -0.18], 'toe');
+      this.box(shoe, this.solid(0x37312c), [0.22, 0.06, 0.2], [0, 0.11, 0.035], 'ankle-collar');
+      this.box(shoe, this.solid(0xe8e2d4), [0.16, 0.022, 0.035], [0, 0.12, -0.11], 'lace-1');
+      this.box(shoe, this.solid(0xe8e2d4), [0.16, 0.022, 0.035], [0, 0.12, -0.045], 'lace-2');
+      this.box(shoe, this.solid(0xe8e2d4), [0.16, 0.022, 0.035], [0, 0.12, 0.02], 'lace-3');
+      knee.add(shoe);
       this.body.add(leg);
-      return leg;
+      return { leg, knee };
     };
-    const legL = makeLeg(-1);
-    const legR = makeLeg(1);
+    const { leg: legL, knee: kneeL } = makeLeg(-1);
+    const { leg: legR, knee: kneeR } = makeLeg(1);
 
-    // --- Торс (от бёдер 0.68 до плеч 1.36) ---
+    // --- Торс, куртка и туристический рюкзак ---
     const torso = new Group();
     torso.name = 'torso';
     torso.position.set(0, 0.68, 0);
     this.body.add(torso);
-    this.box(torso, torsoMats, [0.52, 0.68, 0.28], [0, 0.34, 0], 'chest');
+    this.box(torso, torsoMats, [0.52, 0.66, 0.28], [0, 0.33, 0], 'chest');
     this.box(torso, this.solid(0x6e4a26), [0.54, 0.09, 0.3], [0, 0.05, 0], 'belt');
     this.box(torso, this.solid(0xf2c14e), [0.14, 0.07, 0.02], [0, 0.05, -0.16], 'buckle');
-    // Ромб-значок и ремни рюкзака спереди.
+    // Кант куртки, пуговицы, значок и ремни рюкзака спереди.
+    this.box(torso, this.solid(SHIRT_DARK), [0.022, 0.4, 0.014], [0.075, 0.31, -0.15], 'jacket-seam');
+    for (const [i, y] of [0.17, 0.29, 0.53].entries()) {
+      this.box(torso, this.solid(ACCENT), [0.026, 0.026, 0.018], [0.045, y, -0.158], `button-${i + 1}`);
+    }
     const emblem = this.box(torso, this.solid(ACCENT), [0.13, 0.13, 0.02], [0, 0.42, -0.15], 'emblem');
     emblem.rotation.z = Math.PI / 4;
     this.box(torso, this.solid(SHIRT_DARK), [0.07, 0.5, 0.02], [-0.17, 0.36, -0.15], 'strap-left');
     this.box(torso, this.solid(SHIRT_DARK), [0.07, 0.5, 0.02], [0.17, 0.36, -0.15], 'strap-right');
-    // Рюкзак на спине: корпус, клапан, карман, рулон сверху и ремешки снизу.
     const pack = new Group();
     pack.name = 'backpack';
-    pack.position.set(0, 0.36, 0.24);
+    pack.position.set(0, 0.35, 0.24);
     this.box(pack, this.solid(0x8a6742), [0.4, 0.5, 0.18], [0, 0, 0], 'pack-body');
     this.box(pack, this.solid(0x6e4f30), [0.42, 0.16, 0.2], [0, 0.2, 0], 'pack-flap');
     this.box(pack, this.solid(0xa67c4e), [0.28, 0.2, 0.04], [0, -0.1, 0.1], 'pack-pocket');
@@ -364,53 +434,75 @@ export class PlayerModel {
     this.box(pack, this.solid(SHIRT), [0.44, 0.13, 0.13], [0, 0.35, 0], 'bedroll');
     this.box(pack, this.solid(0x54381e), [0.44, 0.05, 0.05], [0, -0.27, 0], 'pack-strap');
     torso.add(pack);
-    // Шея и воротник.
-    this.box(torso, skinMat, [0.18, 0.12, 0.18], [0, 0.72, 0], 'neck');
-    this.box(torso, this.solid(SHIRT_DARK), [0.34, 0.07, 0.3], [0, 0.69, 0], 'collar');
+    this.box(torso, neckMat, [0.18, 0.14, 0.18], [0, 0.69, 0], 'neck');
+    this.box(torso, this.solid(SHIRT_DARK), [0.34, 0.07, 0.3], [0, 0.66, 0], 'collar');
 
-    // --- Руки (точка поворота — плечо) ---
-    const makeArm = (side: -1 | 1): Group => {
+    // --- Руки: рукав, сгибающийся локоть, предплечье и пальцы ---
+    const makeArm = (side: -1 | 1): { arm: Group; elbow: Group } => {
       const arm = new Group();
       arm.name = side < 0 ? 'arm-left' : 'arm-right';
-      arm.position.set(side * 0.36, 0.62, 0);
-      this.box(arm, sleeveMat, [0.21, 0.3, 0.23], [0, -0.15, 0], 'sleeve');
-      this.box(arm, skinMat, [0.19, 0.22, 0.2], [0, -0.4, 0], 'forearm');
-      this.box(arm, handMat, [0.2, 0.16, 0.21], [0, -0.58, 0], 'hand');
-      this.box(arm, skinMat, [0.06, 0.12, 0.08], [-side * 0.12, -0.56, -0.04], 'thumb');
-      if (side < 0) this.box(arm, this.solid(ACCENT), [0.23, 0.07, 0.25], [0, -0.31, 0], 'wristband');
+      arm.position.set(side * 0.36, 0.61, 0);
+      this.box(arm, sleeveMat, [0.22, 0.3, 0.24], [0, -0.15, 0], 'sleeve');
+      this.box(arm, sleeveMat, [0.25, 0.12, 0.25], [0, -0.035, 0], 'shoulder-cap');
+
+      const elbow = new Group();
+      elbow.name = side < 0 ? 'elbow-left' : 'elbow-right';
+      elbow.position.set(0, -0.285, 0);
+      arm.add(elbow);
+      this.box(elbow, forearmMat, [0.19, 0.27, 0.2], [0, -0.135, 0], 'forearm');
+      this.box(elbow, this.solid(SHIRT_DARK), [0.21, 0.055, 0.22], [0, -0.02, 0], 'sleeve-cuff');
+      if (side < 0) this.box(elbow, this.solid(ACCENT), [0.22, 0.065, 0.23], [0, -0.245, 0], 'wristband');
+
+      const hand = new Group();
+      hand.name = side < 0 ? 'hand-left' : 'hand-right';
+      hand.position.set(0, -0.27, 0);
+      this.box(hand, handMat, [0.18, 0.12, 0.13], [0, -0.045, -0.015], 'hand');
+      for (let i = 0; i < 4; i++) {
+        const x = (i - 1.5) * 0.038;
+        this.box(hand, skinMat, [0.027, 0.085 - Math.abs(i - 1.5) * 0.008, 0.035],
+          [x, -0.125, -0.035], `finger-${side < 0 ? 'left' : 'right'}-${i + 1}`);
+      }
+      this.box(hand, skinMat, [0.045, 0.09, 0.05], [-side * 0.095, -0.035, -0.025], 'thumb');
       if (side > 0) {
-        // Выбранный блок в правой руке (материалы ставит setHeldBlock).
-        this.heldMesh = this.box(arm, this.solid(0x000000), [0.3, 0.3, 0.3], [0, -0.78, -0.1], 'held-item');
+        // Выбранный блок лежит перед ладонью и движется вместе с рукой.
+        this.heldMesh = this.box(hand, this.solid(0x000000), [0.25, 0.25, 0.25], [0, -0.12, -0.17], 'held-item');
         this.heldMesh.rotation.set(0.15, 0.5, 0);
         this.heldMesh.visible = false;
       }
+      elbow.add(hand);
       torso.add(arm);
-      return arm;
+      return { arm, elbow };
     };
-    const armL = makeArm(-1);
-    const armR = makeArm(1);
+    const { arm: armL, elbow: elbowL } = makeArm(-1);
+    const { arm: armR, elbow: elbowR } = makeArm(1);
 
-    // --- Голова (точка поворота — шея, суммарно центр ≈1.58) ---
+    // --- Голова: компактные человеческие пропорции, лицо, уши и рельефный нос ---
     const head = new Group();
     head.name = 'head';
-    head.position.set(0, 0.74, 0);
+    head.position.set(0, 0.71, 0);
     torso.add(head);
-    this.headMesh = this.box(head, this.headMatsOpen, [0.5, 0.47, 0.48], [0, 0.235, 0], 'skull');
-    // Причёска: шапка волос, задняя и боковые панели, чёлка с «зубцами».
-    this.box(head, hairMat, [0.54, 0.1, 0.52], [0, 0.5, 0], 'hair-top');
-    this.box(head, hairMat, [0.54, 0.36, 0.09], [0, 0.3, 0.235], 'hair-back');
-    this.box(head, hairMat, [0.09, 0.32, 0.52], [-0.255, 0.31, 0], 'hair-left');
-    this.box(head, hairMat, [0.09, 0.32, 0.52], [0.255, 0.31, 0], 'hair-right');
-    this.box(head, hairMat, [0.54, 0.13, 0.09], [0, 0.43, -0.235], 'fringe');
-    const teeth = [-0.18, -0.06, 0.06, 0.18];
+    this.headMesh = this.box(head, this.headMatsOpen, [0.42, 0.42, 0.4], [0, 0.2, 0], 'skull');
+    const hairCoverMats = [hairPanelMat, hairPanelMat, hairTop, hairMat, hairPanelMat, hairPanelMat];
+    this.box(head, hairCoverMats, [0.46, 0.05, 0.43], [0, 0.405, 0], 'hair-top');
+    this.box(head, hairPanelMat, [0.44, 0.28, 0.075], [0, 0.25, 0.19], 'hair-back');
+    this.box(head, hairPanelMat, [0.075, 0.28, 0.4], [-0.205, 0.25, 0], 'hair-left');
+    this.box(head, hairPanelMat, [0.075, 0.28, 0.4], [0.205, 0.25, 0], 'hair-right');
+    this.box(head, hairPanelMat, [0.45, 0.09, 0.075], [0, 0.345, -0.19], 'fringe');
+    const teeth = [-0.15, -0.05, 0.05, 0.15];
     teeth.forEach((x, i) => {
-      this.box(head, i % 2 ? hairLightMat : hairMat, [0.09, 0.08 + (i % 2) * 0.05, 0.09], [x, 0.35, -0.235], `fringe-tooth-${i}`);
+      this.box(head, i % 2 ? hairLightMat : hairMat, [0.09, 0.075 + (i % 2) * 0.025, 0.08],
+        [x, 0.29, -0.197], `fringe-tooth-${i}`);
     });
-    // Уши.
-    this.box(head, skinMat, [0.07, 0.15, 0.17], [-0.28, 0.2, 0], 'ear-left');
-    this.box(head, skinMat, [0.07, 0.15, 0.17], [0.28, 0.2, 0], 'ear-right');
+    for (const side of [-1, 1] as const) {
+      this.box(head, skinMat, [0.06, 0.12, 0.11], [side * 0.225, 0.17, 0], side < 0 ? 'ear-left' : 'ear-right');
+      this.box(head, this.solid(SKIN_DARK), [0.018, 0.055, 0.055], [side * 0.252, 0.17, -0.035],
+        side < 0 ? 'ear-inner-left' : 'ear-inner-right');
+    }
+    this.box(head, this.solid(SKIN_LIGHT), [0.05, 0.1, 0.055], [0, 0.195, -0.208], 'nose-bridge');
+    this.box(head, this.solid(SKIN), [0.07, 0.055, 0.075], [0, 0.15, -0.238], 'nose-tip');
+    this.box(head, this.solid(SKIN_DARK), [0.038, 0.012, 0.012], [0, 0.119, -0.275], 'nose-shadow');
 
-    this.parts = { head, armL, armR, legL, legR };
+    this.parts = { head, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR };
   }
 
   private register(material: Material): Material {
@@ -489,13 +581,23 @@ export class PlayerModel {
 
     const speed = Math.hypot(p.vx, p.vz);
     this.smoothSpeed += (speed - this.smoothSpeed) * (1 - Math.exp(-10 * dt));
-    const { head, armL, armR, legL, legR } = this.parts;
+    const { head, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR } = this.parts;
 
-    // Моргание: закрываем глаза на 0.13 c каждые ~2–5 c.
+    // Моргание проходит тремя фазами: веки опускаются, закрываются и плавно открываются.
     this.nextBlink -= dt;
-    if (this.nextBlink <= 0) { this.blinkLeft = 0.13; this.nextBlink = 2 + ((this.time * 7919) % 3); }
-    if (this.blinkLeft > 0) this.blinkLeft -= dt;
-    this.headMesh.material = this.blinkLeft > 0 ? this.headMatsClosed : this.headMatsOpen;
+    if (this.nextBlink <= 0 && this.blinkLeft <= 0) {
+      this.blinkLeft = this.blinkDuration;
+      const noise = Math.sin((this.blinkCount + 1) * 12.9898 + this.time * 78.233) * 43758.5453;
+      this.nextBlink = 2 + (noise - Math.floor(noise)) * 3;
+      this.blinkCount++;
+    }
+    let faceMats = this.headMatsOpen;
+    if (this.blinkLeft > 0) {
+      const progress = 1 - this.blinkLeft / this.blinkDuration;
+      faceMats = progress < 0.28 || progress > 0.72 ? this.headMatsHalf : this.headMatsClosed;
+      this.blinkLeft = Math.max(0, this.blinkLeft - dt);
+    }
+    this.headMesh.material = faceMats;
 
     // Голова следует за наклоном взгляда.
     head.rotation.x = p.pitch * 0.85;
@@ -503,6 +605,10 @@ export class PlayerModel {
 
     let legSwing = 0;
     let armSwing = 0;
+    let elbowLFlex = 0.06;
+    let elbowRFlex = 0.06;
+    let kneeLFlex = 0;
+    let kneeRFlex = 0;
     let lean = 0;
     let bob = Math.sin(this.time * 1.8) * 0.008; // дыхание
     armL.rotation.z = -0.07;
@@ -516,16 +622,24 @@ export class PlayerModel {
       armSwing = Math.sin(this.walkPhase) * 1.35;
       armL.rotation.x = armSwing;
       armR.rotation.x = -armSwing;
+      elbowLFlex = 0.22;
+      elbowRFlex = 0.22;
       legL.rotation.x = Math.sin(this.walkPhase * 1.4) * 0.4;
       legR.rotation.x = -legL.rotation.x;
+      kneeLFlex = 0.14;
+      kneeRFlex = 0.14;
       lean = -0.5;
       bob = Math.sin(this.time * 2.4) * 0.03;
     } else if (p.flying) {
       // Парение: руки слегка назад, ноги вытянуты, лёгкое покачивание.
       armL.rotation.x = 0.3 + Math.sin(this.time * 2) * 0.05;
       armR.rotation.x = 0.3 - Math.sin(this.time * 2) * 0.05;
+      elbowLFlex = 0.12;
+      elbowRFlex = 0.12;
       legL.rotation.x = 0.12;
       legR.rotation.x = -0.06;
+      kneeLFlex = 0.05;
+      kneeRFlex = 0.05;
       lean = -0.08;
       bob = Math.sin(this.time * 2) * 0.035;
     } else if (!p.onGround) {
@@ -535,8 +649,12 @@ export class PlayerModel {
       armR.rotation.z = falling ? 0.85 : 0.45;
       armL.rotation.x = falling ? -0.35 : -0.2;
       armR.rotation.x = falling ? -0.35 : 0.15;
+      elbowLFlex = falling ? 0.28 : 0.18;
+      elbowRFlex = falling ? 0.28 : 0.18;
       legL.rotation.x = falling ? 0.25 : -0.55;
       legR.rotation.x = falling ? -0.2 : 0.3;
+      kneeLFlex = falling ? 0.1 : 0.24;
+      kneeRFlex = falling ? 0.1 : 0.18;
       lean = falling ? 0.04 : -0.06;
     } else if (this.smoothSpeed > 0.15) {
       // Ходьба/бег: фаза шага от реальной скорости, амплитуда растёт со скоростью.
@@ -548,6 +666,10 @@ export class PlayerModel {
       legR.rotation.x = -legSwing;
       armL.rotation.x = -armSwing;
       armR.rotation.x = armSwing;
+      elbowLFlex = 0.08 + Math.abs(armSwing) * 0.18;
+      elbowRFlex = 0.08 + Math.abs(armSwing) * 0.18;
+      kneeLFlex = Math.max(0, -legSwing) * 0.58;
+      kneeRFlex = Math.max(0, legSwing) * 0.58;
       lean = this.smoothSpeed > 5 ? -0.14 : -0.05;
       bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * Math.min(1, this.smoothSpeed / 4.3);
     } else {
@@ -565,9 +687,14 @@ export class PlayerModel {
         const k = this.actionTime / dur;
         armR.rotation.x = -0.25 + Math.sin(k * Math.PI) * 1.85;
         armR.rotation.z = 0.07 + Math.sin(k * Math.PI) * 0.15;
+        elbowRFlex = 0.18 + Math.sin(k * Math.PI) * 0.24;
       }
     }
 
+    elbowL.rotation.x = elbowLFlex;
+    elbowR.rotation.x = elbowRFlex;
+    kneeL.rotation.x = kneeLFlex;
+    kneeR.rotation.x = kneeRFlex;
     this.body.position.y = bob;
     this.body.rotation.x = lean;
     this.body.rotation.z = p.onGround && this.smoothSpeed > 0.15
