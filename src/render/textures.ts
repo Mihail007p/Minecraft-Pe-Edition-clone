@@ -291,7 +291,7 @@ const generators: Record<string, Generator> = {
 
   leaves(t, rng) {
     t.fill(c(COL.leaves[0], COL.leaves[1], COL.leaves[2], 0));
-    // Ажурная крона: отдельные листья и тонкие веточки с живыми сквозными просветами между ними.
+    // Разреженная крона: крупные сквозные просветы и мягко просвечивающие листья.
     const kind = new Uint8Array(N * N);
     const put = (x: number, y: number, k: number) => {
       const px = ((x % N) + N) % N;
@@ -303,10 +303,10 @@ const generators: Record<string, Generator> = {
       put(tx, ty, 4);
     }
     const clusters = [
-      [1, 0, 0], [6, 0, 1], [11, 1, 0], [15, 2, 1],
-      [3, 4, 1], [8, 3, 0], [13, 5, 0], [0, 6, 1],
-      [5, 7, 0], [10, 8, 1], [15, 9, 0], [2, 10, 0],
-      [7, 11, 1], [12, 12, 0], [1, 14, 1], [6, 14, 0], [10, 14, 1], [14, 14, 0],
+      [1, 0, 0], [11, 1, 0], [15, 2, 1],
+      [3, 4, 1], [8, 3, 0], [13, 5, 0],
+      [5, 7, 0], [15, 9, 0], [2, 10, 0],
+      [7, 11, 1], [12, 12, 0], [1, 14, 1],
     ];
     for (const [lx, ly, dir] of clusters) {
       if (dir === 0) {
@@ -325,9 +325,9 @@ const generators: Record<string, Generator> = {
         if (k === 0) continue;
         const d = (rng() * 2 - 1) * 6;
         if (k === 4) t.set(x, y, add(c(98, 74, 42, 242), d));
-        else if (k === 1) t.set(x, y, add(c(44, 96, 24, 205), d));
-        else if (k === 2) t.set(x, y, add(c(62, 128, 34, 235), d));
-        else t.set(x, y, add(c(86, 158, 44, 248), d));
+        else if (k === 1) t.set(x, y, add(c(44, 96, 24, 155), d));
+        else if (k === 2) t.set(x, y, add(c(62, 128, 34, 180), d));
+        else t.set(x, y, add(c(86, 158, 44, 205), d));
       }
     }
   },

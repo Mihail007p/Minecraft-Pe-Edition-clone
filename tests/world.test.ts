@@ -139,10 +139,13 @@ test('листва прозрачная как в жизни: сквозные �
       assert.ok(px[i] > 0 && px[i + 1] > 0, 'прозрачные пиксели хранят цвет листвы без чёрного ореола');
     } else if (a < 255) {
       translucentLeaves++;
+      if (px[i + 1] > px[i]) {
+        assert.ok(a >= 128 && a <= 205, 'листья заметно просвечивают, но проходят alpha test 0.5');
+      }
     }
   }
   const gapRatio = openGaps / total;
-  assert.ok(gapRatio >= 0.45 && gapRatio <= 0.65, `сквозные просветы в листве: ${(gapRatio * 100).toFixed(1)}%`);
+  assert.ok(gapRatio >= 0.65 && gapRatio <= 0.75, `сквозные просветы в листве: ${(gapRatio * 100).toFixed(1)}%`);
   assert.ok(translucentLeaves > 0, 'листья пропускают мягкий свет (полупрозрачная альфа)');
 
   // Атлас не размывает пиксельные просветы мипмапами на расстоянии и под углом.
