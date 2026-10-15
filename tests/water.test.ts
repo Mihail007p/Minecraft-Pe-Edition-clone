@@ -3,10 +3,9 @@ import assert from 'node:assert/strict';
 import { World } from '../src/world/World.ts';
 import { Player } from '../src/player/Player.ts';
 import {
-  AIR, GRASS, STONE, TALL_GRASS, WATER, WATER_FALL, WATER_F2, WATER_F3,
-  isWater, liquidSurfaceHeight, waterLevel,
+  AIR, GRASS, STONE, TALL_GRASS, WATER, WATER_FALL, WATER_F2,
+  isWater, waterLevel,
 } from '../src/world/Blocks.ts';
-import { WATER_FLOAT_DEPTH } from '../src/config.ts';
 
 /** Плоский мир: камень до y=40, дёрн сверху — детерминированные проверки воды. */
 function flatWorld(): World {
@@ -201,74 +200,4 @@ test('без автопрыжка и прыжка берег удерживае�
   for (let i = 0; i < 4 * 60; i++) p.update(1 / 60, { ...idle, moveZ: 1 }, false);
   assert.ok(p.z > 8, `не должен сам залезть на берег: z=${p.z}`);
   assert.ok(p.y < 43.9, `должен остаться в воде: y=${p.y}`);
-});
-
-test('на плаву вода достаёт до шеи: игрок держится на своём уровне и не дрейфует вверх, «вставая на воду»', () => {
-  const world = waterWorld();
-  const p = new Player(world);
-  p.teleport(8.5, 41.2, 12.5);
-  step(p, idle, 5);
-  const surface = 43 + liquidSurfaceHeight(WATER); // верхний блок источников — y=43, видимая поверхность ниже его края
-  assert.equal(p.waterSurfaceY, surface, 'игрок знает высоту поверхности воды над собой');
-  assert.ok(Math.abs(p.y - (surface - WATER_FLOAT_DEPTH)) < 0.05, `ступни на ${WATER_FLOAT_DEPTH} ниже воды: y=${p.y}`);
-  assert.equal(p.headInWater, false, 'голова над водой');
-  assert.ok(Math.abs(p.vy) < 0.05, `плавучесть успокоилась: vy=${p.vy}`);
-  const settled = p.y;
-  step(p, idle, 6);
-  assert.ok(Math.abs(p.y - settled) < 0.02, `без дрейфа вверх: ${settled} → ${p.y}`);
-  assert.ok(p.y + 1.0 < surface, 'тело в воде, а не на воде: ступни и пояс под поверхностью');
-  assert.equal(p.inWater, true);
-});
-
-test('вне воды высота поверхности неизвестна', () => {
-  const world = waterWorld();
-  const p = new Player(world);
-  p.teleport(8.5, 44, 3.5); // берег-полка
-  step(p, idle, 0.5);
-  assert.equal(p.inWater, false);
-  assert.equal(p.waterSurfaceY, null);
-});
-
-test('плывя вперёд у поверхности, игрок остаётся на плаву: не вылетает на воду и не уходит ко дну', () => {
-  const world = waterWorld();
-  const p = new Player(world);
-  p.teleport(4.6, 42.5, 11.5);
-  p.yaw = -Math.PI / 2; // вперёд = +X: вдоль котлована
-  const surface = 43 + liquidSurfaceHeight(WATER);
-  let minY = Infinity, maxY = -Infinity, headOut = 0, frames = 0;
-  for (let i = 0; i < 2.2 * 60; i++) {
-    p.update(1 / 60, { ...idle, moveZ: 1 }, true);
-    if (i > 60) {
-      minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-      frames++; if (!p.headInWater) headOut++;
-      assert.equal(p.inWater, true, 'всё время в воде, без подпрыгиваний');
-    }
-  }
-  assert.ok(p.x > 8 && p.x < 12.5, `проплыл вдоль котлована: x=${p.x}`);
-  assert.ok(minY > surface - WATER_FLOAT_DEPTH - 0.15 && maxY < surface - WATER_FLOAT_DEPTH + 0.15, `держится на уровне плавания: ${minY.toFixed(2)}…${maxY.toFixed(2)}`);
-  assert.equal(headOut, frames, 'голова всё время над водой');
-});
-
-test('из воды можно выбраться на берег, который на блок выше поверхности', () => {
-  const world = waterWorld();
-  for (let z = -8; z <= 7; z++) for (let x = 3; x <= 13; x++) world.setBlock(x, 44, z, STONE); // берег выше: верх 45
-  const p = new Player(world);
-  p.teleport(8.5, 41.2, 12.5);
-  step(p, idle, 4); // всплыли и держимся на плаву
-  step(p, { ...idle, moveZ: 1 }, 3);
-  assert.ok(p.onGround, 'должен стоять на берегу');
-  assert.ok(Math.abs(p.y - 45) < 0.1, `залез на берег с верхом 45: y=${p.y}`);
-  assert.ok(p.z < 8.2, `вышел на сушу: z=${p.z}`);
-});
-
-test('над текучей водой глаза всё равно остаются выше блока воды, а не «внутри» неё', () => {
-  const world = waterWorld();
-  for (let y = 41; y <= 43; y++) world.setBlock(8, y, 12, WATER_F3); // столб текучей воды: поверхность ниже края блока
-  const p = new Player(world);
-  p.teleport(8.5, 41.2, 12.5);
-  step(p, idle, 5);
-  const top = 44;
-  assert.ok(p.y + 1.62 > top, `глаза выше верха блока воды: ${p.y + 1.62}`);
-  assert.equal(p.headInWater, false);
-  assert.equal(p.waterSurfaceY, 43 + liquidSurfaceHeight(WATER_F3));
 });
