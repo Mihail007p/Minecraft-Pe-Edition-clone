@@ -8,6 +8,8 @@ export class InputState {
   /** Накопленный поворот камеры за кадр (в «пикселях» экрана). */
   lookDX = 0;
   lookDY = 0;
+  /** Угол наклона камеры (pitch) в радианах — используется для плавания. */
+  lookPitch = 0;
 
   /** Сбросить накопленные дельты после применения. */
   consumeLook(): [number, number] {
@@ -25,6 +27,7 @@ export class InputState {
     this.sprint = false;
     this.lookDX = 0;
     this.lookDY = 0;
+    this.lookPitch = 0;
   }
 }
 

@@ -136,6 +136,8 @@ export class Player {
       // Подтягиваемся на берег/блок: короткий устойчивый подъём.
       this.climbTimer = Math.max(0, this.climbTimer - dt);
       this.vy += (WATER_EXIT_VELOCITY - this.vy) * (1 - Math.exp(-8 * dt));
+      // После подъема встаем на блок (как в PE: автоматически встает на блоки высотой 1)
+      if (this.climbTimer <= 0) this.onGround = true;
     } else if (this.flying) {
       const target = (input.jump ? 1 : 0) - (input.sneak ? 1 : 0);
       this.vy += (target * FLY_VERTICAL_SPEED - this.vy) * (1 - Math.exp(-14 * dt));

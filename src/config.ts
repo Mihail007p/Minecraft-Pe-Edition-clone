@@ -24,6 +24,12 @@ export const WATER_SWIM_SPEED = 3.0;
 export const WATER_DRAG = 0.8;
 export const WATER_ACCEL = 6.0; // скорость набора вертикальной скорости в воде
 export const WATER_RISE_SPEED = 1.6; // плавучесть под водой: всплытие без управления
+// Новые константы плавания (оригинальный Minecraft feel)
+
+export const WATER_SPRINT_SWIM_SPEED = 5.5; // скорость спринт-плавания
+
+
+export const WATER_ASCEND_SPEED = 4.5; // скорость всплывания (ジャンプ)
 export const WATER_FLOAT_DEPTH = 1.3; // на сколько ступни ниже поверхности на плаву: вода у шеи, голова над водой
 export const WATER_FLOAT_GAIN = 2.5; // «пружина» плавучести: скорость возврата к уровню воды, 1/с
 export const WATER_SINK_SPEED = 1.2; // как быстро вода притягивает вниз тело, поднявшееся выше уровня плавания
