@@ -4,9 +4,13 @@ import { WorldGen, BIOME_NAMES, BIOME_OCEAN } from '../src/world/WorldGen.ts';
 import { World } from '../src/world/World.ts';
 import { Chunk } from '../src/world/Chunk.ts';
 import { ChunkMesher } from '../src/render/ChunkMesher.ts';
+import { createChunkMaterials } from '../src/render/ChunkMaterial.ts';
+import { createBlockTextureArray } from '../src/render/TextureAtlas.ts';
+import { getTexturePixels, TEX_SIZE } from '../src/render/textures.ts';
 import { raycastBlocks } from '../src/world/Raycast.ts';
-import { BLOCKS, AIR, WATER, BEDROCK, GRASS, STONE } from '../src/world/Blocks.ts';
+import { BLOCKS, AIR, WATER, BEDROCK, GRASS, STONE, LEAVES } from '../src/world/Blocks.ts';
 import { CHUNK_HEIGHT, SEA_LEVEL } from '../src/config.ts';
+import { NearestFilter } from 'three';
 
 test('генерация: высоты в допустимом диапазоне, биомы разнообразны', () => {
   const gen = new WorldGen(12345);
@@ -121,4 +125,46 @@ test('setBlock помечает соседние чанки грязными н�
   world.setBlock(0, 40, 5, AIR);
   assert.equal(world.getBlock(0, 40, 5), AIR);
   assert.ok(GRASS > 0);
+});
+
+test('листва прозрачная как в жизни: сквозные просветы, полупрозрачные края, без дублей внутренних граней', () => {
+  const px = getTexturePixels('leaves');
+  const total = TEX_SIZE * TEX_SIZE;
+  let openGaps = 0;
+  let translucentLeaves = 0;
+  for (let i = 0; i < px.length; i += 4) {
+    const a = px[i + 3];
+    if (a === 0) {
+      openGaps++;
+      assert.ok(px[i] > 0 && px[i + 1] > 0, 'прозрачные пиксели хранят цвет листвы без чёрного ореола');
+    } else if (a < 255) {
+      translucentLeaves++;
+    }
+  }
+  const gapRatio = openGaps / total;
+  assert.ok(gapRatio >= 0.45 && gapRatio <= 0.65, `сквозные просветы в листве: ${(gapRatio * 100).toFixed(1)}%`);
+  assert.ok(translucentLeaves > 0, 'листья пропускают мягкий свет (полупрозрачная альфа)');
+
+  // Атлас не размывает пиксельные просветы мипмапами на расстоянии и под углом.
+  const atlas = createBlockTextureArray(4);
+  assert.equal(atlas.magFilter, NearestFilter);
+  assert.equal(atlas.minFilter, NearestFilter);
+  assert.equal(atlas.generateMipmaps, false);
+
+  const mats = createChunkMaterials(atlas);
+  assert.equal(mats.cutout.transparent, true);
+  assert.equal(mats.cutout.depthWrite, true);
+  assert.equal(mats.cutout.uniforms.uAlphaTest.value, 0.5);
+  mats.dispose();
+  atlas.dispose();
+
+  // Между двумя соседними блоками листвы остаётся ровно одна внутренняя грань (без z-fighting дубля).
+  const chunk = new Chunk(0, 0);
+  chunk.set(5, 20, 5, LEAVES);
+  chunk.set(6, 20, 5, LEAVES);
+  const mesher = new ChunkMesher();
+  const res = mesher.mesh(chunk, () => null);
+  assert.ok(res.cutout, 'меш листвы построен');
+  const faces = res.cutout!.indices.length / 6;
+  assert.equal(faces, 11, 'два соседних блока листвы дают 11 граней (10 внешних + 1 общая внутренняя)');
 });

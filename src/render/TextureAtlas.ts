@@ -1,11 +1,11 @@
 import {
-  DataArrayTexture, LinearMipmapLinearFilter, NearestFilter, RGBAFormat, UnsignedByteType,
+  DataArrayTexture, NearestFilter, RGBAFormat, UnsignedByteType,
 } from 'three';
 import { fillFaceLayers } from './faceLayers.ts';
 import { TEXTURE_NAMES, TEX_SIZE, getTexturePixels } from './textures.ts';
 
 /** Собирает все процедурные текстуры в DataArrayTexture (по слою на текстуру). */
-export function createBlockTextureArray(maxAnisotropy = 1): DataArrayTexture {
+export function createBlockTextureArray(_maxAnisotropy = 1): DataArrayTexture {
   fillFaceLayers();
   const layers = TEXTURE_NAMES.length;
   const bytesPerLayer = TEX_SIZE * TEX_SIZE * 4;
@@ -17,9 +17,8 @@ export function createBlockTextureArray(maxAnisotropy = 1): DataArrayTexture {
   texture.format = RGBAFormat;
   texture.type = UnsignedByteType;
   texture.magFilter = NearestFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-  texture.generateMipmaps = true;
-  texture.anisotropy = Math.min(4, maxAnisotropy);
+  texture.minFilter = NearestFilter;
+  texture.generateMipmaps = false;
   texture.needsUpdate = true;
   return texture;
 }

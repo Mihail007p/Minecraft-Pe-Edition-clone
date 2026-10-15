@@ -610,7 +610,7 @@ export class PlayerModel {
     const mats: Material[] = [];
     for (let face = 0; face < 6; face++) {
       const pixels = getTexturePixels(blockFaceTexture(def, face));
-      mats.push(this.texMatFromPixels(new Uint8Array(pixels), TEX_SIZE, def.shape !== 'cube'));
+      mats.push(this.texMatFromPixels(new Uint8Array(pixels), TEX_SIZE, !def.opaque));
     }
     this.heldMesh.material = mats;
     this.heldWanted = true;

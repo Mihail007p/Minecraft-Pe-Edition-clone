@@ -372,7 +372,7 @@ test('модель принимает простую позу без сведе�
 });
 
 test('в руке модели — выбранный блок с текстурами, пустая рука без блока', async () => {
-  const { GRASS, AIR } = await import('../src/world/Blocks.ts');
+  const { GRASS, LEAVES, AIR } = await import('../src/world/Blocks.ts');
   const model = new PlayerModel();
   const held = model.root.getObjectByName('held-item') as Mesh;
   assert.ok(held, 'место предмета в руке есть');
@@ -380,6 +380,9 @@ test('в руке модели — выбранный блок с текстур
   model.setHeldBlock(GRASS);
   assert.equal(held.visible, true, 'блок появился в руке');
   assert.ok(Array.isArray(held.material) && held.material.length === 6, 'у мини-куба шесть граней с текстурами');
+  model.setHeldBlock(LEAVES);
+  const leafMats = held.material as { transparent: boolean; alphaTest: number }[];
+  assert.ok(leafMats.every((m) => m.transparent && m.alphaTest === 0.5), 'листва в руке прозрачная');
   model.setHeldBlock(AIR);
   assert.equal(held.visible, false, 'пустой слот — пустая рука');
   model.dispose();

@@ -196,9 +196,12 @@ export class ChunkMesher {
       const nz = z + face.n[2];
       const nId = this.get(nx, ny, nz);
       // Непрозрачный сосед полностью закрывает грань; одинаковые соседи (вода, стекло) не рисуют стык.
+      // Между двумя блоками листвы оставляем ровно одну двустороннюю грань на стык (без дублей и z-fighting).
       if (BLOCK_OPAQUE[nId] === 1) continue;
       if (def.cullSame && (nId === id || (isLiquid && isWater(nId)))) continue;
+      if (nId === id && (f & 1) === 1) continue;
 
+      const faceShade = nId === id ? 0.76 : face.shade;
       const layer = BLOCK_FACE_LAYER[id * 6 + f];
       const bx = x + face.base[0];
       const by = y + face.base[1];
@@ -233,7 +236,7 @@ export class ChunkMesher {
         if (!oc) { sum += this.columnLight(cx, cy, cz); count++; }
         const sky = sum / count;
 
-        this.light[c] = face.shade * AO_CURVE[ao] * sky;
+        this.light[c] = faceShade * AO_CURVE[ao] * sky;
       }
       const flip = this.light[0] + this.light[2] < this.light[1] + this.light[3];
       builder.quad(this.px, this.py, this.pz, layer, this.light, flip);
