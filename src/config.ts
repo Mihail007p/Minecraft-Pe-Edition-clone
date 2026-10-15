@@ -2,7 +2,7 @@
 // Всё, что влияет на баланс/производительность, собрано здесь, чтобы было удобно подстраивать.
 
 export const GAME_TITLE = 'Minecraft PE Clone';
-export const GAME_VERSION = '0.4.0';
+export const GAME_VERSION = '0.5.0';
 
 // --- Мир ---
 export const CHUNK_SIZE = 16; // ширина/глубина чанка в блоках
@@ -24,7 +24,9 @@ export const WATER_SWIM_SPEED = 3.0;
 export const WATER_DRAG = 0.8;
 export const WATER_ACCEL = 6.0; // скорость набора вертикальной скорости в воде
 export const WATER_RISE_SPEED = 1.6; // плавучесть под водой: всплытие без управления
-export const WATER_FLOAT_SPEED = 0.25; // дрейф у поверхности (голова над водой)
+export const WATER_FLOAT_DEPTH = 1.3; // на сколько ступни ниже поверхности на плаву: вода у шеи, голова над водой
+export const WATER_FLOAT_GAIN = 2.5; // «пружина» плавучести: скорость возврата к уровню воды, 1/с
+export const WATER_SINK_SPEED = 1.2; // как быстро вода притягивает вниз тело, поднявшееся выше уровня плавания
 export const WATER_JUMP_VELOCITY = 7.2; // выпрыгивание из воды у поверхности
 export const WATER_EXIT_VELOCITY = 9.0; // подтягивание на берег/блок при выходе из воды
 export const REACH_DISTANCE = 5.5; // дальность взаимодействия с блоками
