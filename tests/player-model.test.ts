@@ -42,11 +42,31 @@ test('модель игрока детальная: именованные ча�
     if (obj.name) names.add(obj.name);
     if (obj instanceof Mesh) meshes++;
   });
-  for (const part of ['head', 'skull', 'hair-top', 'fringe', 'ear-left', 'ear-right', 'torso', 'chest',
-    'belt', 'buckle', 'backpack', 'bedroll', 'arm-left', 'arm-right', 'leg-left', 'leg-right', 'shoe']) {
+  for (const part of ['head', 'skull', 'hair-top', 'fringe', 'ear-left', 'ear-right', 'ear-inner-left', 'ear-inner-right',
+    'nose-bridge', 'nose-tip', 'nose-shadow', 'torso', 'chest', 'belt', 'buckle', 'backpack', 'bedroll',
+    'arm-left', 'arm-right', 'elbow-left', 'elbow-right', 'forearm', 'hand-left', 'hand-right', 'finger-left-1',
+    'leg-left', 'leg-right', 'knee-left', 'knee-right', 'shin', 'kneepad', 'shoe']) {
     assert.ok(names.has(part), `в модели не хватает детали «${part}»`);
   }
-  assert.ok(meshes >= 40, `модель слишком простая: всего ${meshes} мешей`);
+  assert.ok(meshes >= 70, `модель слишком простая: всего ${meshes} мешей`);
+  model.dispose();
+});
+
+test('анимация моргания проходит через полуоткрытые и закрытые веки', () => {
+  const model = new PlayerModel();
+  const skull = model.root.getObjectByName('skull') as Mesh;
+  const openFace = skull.material;
+  const seenFaces = new Set<unknown>([openFace]);
+  const player = {
+    x: 0, y: 41, z: 0, yaw: 0, pitch: 0,
+    vx: 0, vy: 0, vz: 0, onGround: true, flying: false, inWater: false,
+  };
+  for (let i = 0; i < 150; i++) {
+    model.update(1 / 60, player);
+    seenFaces.add(skull.material);
+  }
+  assert.equal(seenFaces.size, 3, 'глаза используют открытое, полуоткрытое и закрытое состояние');
+  assert.equal(skull.material, openFace, 'после моргания глаза снова открыты');
   model.dispose();
 });
 
@@ -60,9 +80,14 @@ test('анимация модели: при ходьбе ноги и руки м
   for (let i = 0; i < 20; i++) model.update(1 / 60, player);
   const legL = model.root.getObjectByName('leg-left')!;
   const legR = model.root.getObjectByName('leg-right')!;
+  const elbowL = model.root.getObjectByName('elbow-left')!;
+  const kneeL = model.root.getObjectByName('knee-left')!;
+  const kneeR = model.root.getObjectByName('knee-right')!;
   const head = model.root.getObjectByName('head')!;
   assert.ok(Math.abs(legL.rotation.x) > 0.05, `нога должна махать: ${legL.rotation.x}`);
   assert.ok(Math.sign(legL.rotation.x) === -Math.sign(legR.rotation.x), 'ноги машут в противофазе');
+  assert.ok(elbowL.rotation.x > 0.05, 'локоть сгибается при ходьбе');
+  assert.ok(kneeL.rotation.x + kneeR.rotation.x > 0, 'колено слегка сгибается в шаге');
   assert.ok(Math.abs(head.rotation.x - 0.4 * 0.85) < 1e-9, 'голова наклоняется за взглядом');
   assert.ok(Math.abs(model.root.position.y - 41) < 1e-9, 'модель стоит на ногах игрока');
   assert.ok(Math.abs(model.root.rotation.y - 0.5) < 1e-9, 'модель повёрнута по yaw');
