@@ -34,7 +34,7 @@ export const WATER_FLOAT_DEPTH = 1.3; // на сколько ступни ниж
 export const WATER_FLOAT_GAIN = 2.5; // «пружина» плавучести: скорость возврата к уровню воды, 1/с
 export const WATER_SINK_SPEED = 1.2; // как быстро вода притягивает вниз тело, поднявшееся выше уровня плавания
 export const WATER_JUMP_VELOCITY = 7.2; // выпрыгивание из воды у поверхности
-export const WATER_EXIT_VELOCITY = 9.0; // подтягивание на берег/блок при выходе из воды
+export const WATER_CLIMB_SPEED = 4.5; // контролируемая скорость подъёма на берег, без прыжка по инерции
 export const REACH_DISTANCE = 5.5; // дальность взаимодействия с блоками
 
 // --- Камера от третьего лица ---

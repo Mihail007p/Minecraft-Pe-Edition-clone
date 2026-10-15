@@ -6,37 +6,23 @@
 // root.rotation.y = yaw игрока сразу ставит её по взгляду.
 //
 // Анимации: ходьба/бег с махами рук и ног от пройденной фазы, дыхание на месте,
-<<<<<<< HEAD
-// прыжок и падение, плавание как у человека (кроль с креном и дыханием, стойка на воде
-// со скуллингом и «яйцебитером», нырок «стрелой» — см. SwimPose.ts), парение в полёте,
-// взмах правой рукой при добыче/установке блока и моргание.
-=======
 // прыжок и падение, плавание кролем по биомеханике (полный круг рук с высоким
 // локтем при проносе, шестиудорный флаттер от бедра, крен плеч), парение в
 // полёте, взмах правой рукой при добыче/установке блока и моргание.
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 //
 // Знаки суставов: вперёд модели — локальный −Z, поэтому отрицательный
 // rotation.x сгибает колено назад (пятка поднимается), а положительный
 // rotation.x сгибает локоть вперёд — оба так, как сгибаются у человека.
 
 import {
-<<<<<<< HEAD
-  BoxGeometry, DataTexture, Euler, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial,
-  NearestFilter, Quaternion, RGBAFormat, SRGBColorSpace, Vector3, type Material, type Texture,
-=======
   BoxGeometry, DataTexture, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial,
-  NearestFilter, RGBAFormat, SRGBColorSpace, type Material, type Texture,
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
+  NearestFilter, Quaternion, RGBAFormat, SRGBColorSpace, Vector3, type Material, type Texture,
 } from 'three';
 import {
   PLAYER_EYE_HEIGHT, THIRD_PERSON_DISTANCE, THIRD_PERSON_HEIGHT, type CameraView,
 } from '../config.ts';
 import { AIR, BLOCKS, faceTexture as blockFaceTexture } from '../world/Blocks.ts';
-<<<<<<< HEAD
-import { HIP_HEIGHT, SwimAnimator, type LimbTarget, type SwimPose, type Vec3 } from './SwimPose.ts';
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
+import type { Vec3 } from './SwimPose.ts';
 import { TEX_SIZE, getTexturePixels } from './textures.ts';
 
 /** Всё, что модели нужно знать об игроке на кадр (структурно совместимо с Player). */
@@ -47,13 +33,6 @@ export interface PlayerPoseSource {
   onGround: boolean;
   flying: boolean;
   inWater: boolean;
-<<<<<<< HEAD
-  /** Голова под водой (если не передано — над водой). */
-  headInWater?: boolean;
-  /** Высота поверхности воды над игроком; null или не передано — неизвестна. */
-  waterSurfaceY?: number | null;
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 }
 
 export interface CameraPose {
@@ -63,6 +42,38 @@ export interface CameraPose {
 }
 
 type SolidFn = (x: number, y: number, z: number) => boolean;
+
+const DOWN = new Vector3(0, -1, 0);
+const AXIS_Y = new Vector3(0, 1, 0);
+const aimU = new Vector3();
+const aimF = new Vector3();
+const aimPerp = new Vector3();
+const aimBend = new Vector3();
+const aimSide = new Vector3();
+const aimDir = new Quaternion();
+const aimTwist = new Quaternion();
+
+/**
+ * Поворачивает конечность так, чтобы верхнее звено смотрело вдоль upper,
+ * а предплечье/голень — вдоль lower. Возвращает угол сгиба сустава.
+ */
+export function aimLimb(upper: Vec3, lower: Vec3, bendSign: -1 | 1, out: Quaternion): number {
+  aimU.set(upper[0], upper[1], upper[2]).normalize();
+  aimF.set(lower[0], lower[1], lower[2]).normalize();
+  aimDir.setFromUnitVectors(DOWN, aimU);
+  const cosFlex = Math.min(1, Math.max(-1, aimU.dot(aimF)));
+  aimPerp.copy(aimF).addScaledVector(aimU, -cosFlex);
+  let twist = 0;
+  if (aimPerp.lengthSq() > 1e-8) {
+    aimPerp.normalize();
+    aimBend.set(0, 0, bendSign).applyQuaternion(aimDir);
+    aimSide.set(1, 0, 0).applyQuaternion(aimDir);
+    twist = Math.atan2(bendSign * aimPerp.dot(aimSide), aimPerp.dot(aimBend));
+  }
+  aimTwist.setFromAxisAngle(AXIS_Y, twist);
+  out.copy(aimDir).multiply(aimTwist);
+  return Math.acos(cosFlex);
+}
 
 /**
  * Поза камеры для выбранного вида. Для третьего лица камера отодвигается
@@ -329,10 +340,6 @@ function handTexture(): Pix {
 
 interface PartRefs {
   head: Group;
-<<<<<<< HEAD
-  torso: Group;
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
   armL: Group;
   armR: Group;
   elbowL: Group;
@@ -341,65 +348,12 @@ interface PartRefs {
   legR: Group;
   kneeL: Group;
   kneeR: Group;
-<<<<<<< HEAD
-  shoeL: Group;
-  shoeR: Group;
-}
-
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-const DOWN = new Vector3(0, -1, 0);
-const AXIS_Y = new Vector3(0, 1, 0);
-const aimU = new Vector3();
-const aimF = new Vector3();
-const aimPerp = new Vector3();
-const aimBend = new Vector3();
-const aimSide = new Vector3();
-const aimDir = new Quaternion();
-const aimTwist = new Quaternion();
-
-/**
- * Повернуть конечность так, чтобы плечо (бедро) смотрело вдоль upper, а предплечье (голень) — вдоль lower.
- * Записывает в out поворот сустава у плеча (бедра) и возвращает угол сгиба локтя (колена) в радианах.
- * Локоть сгибается предплечьем к −Z звена (rotation.x > 0), колено — к +Z (rotation.x < 0): bendSign = −1 / +1.
- */
-export function aimLimb(upper: Vec3, lower: Vec3, bendSign: -1 | 1, out: Quaternion): number {
-  aimU.set(upper[0], upper[1], upper[2]).normalize();
-  aimF.set(lower[0], lower[1], lower[2]).normalize();
-  aimDir.setFromUnitVectors(DOWN, aimU);
-  const cosFlex = Math.min(1, Math.max(-1, aimU.dot(aimF)));
-  // Плоскость сгиба задаётся самими звеньями: докручиваем плечо вокруг его оси так, чтобы сгиб смотрел в нужную сторону.
-  aimPerp.copy(aimF).addScaledVector(aimU, -cosFlex);
-  let twist = 0;
-  if (aimPerp.lengthSq() > 1e-8) {
-    aimPerp.normalize();
-    aimBend.set(0, 0, bendSign).applyQuaternion(aimDir);
-    aimSide.set(1, 0, 0).applyQuaternion(aimDir);
-    twist = Math.atan2(bendSign * aimPerp.dot(aimSide), aimPerp.dot(aimBend));
-  }
-  aimTwist.setFromAxisAngle(AXIS_Y, twist);
-  out.copy(aimDir).multiply(aimTwist);
-  return Math.acos(cosFlex);
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 }
 
 /** Детальная модель игрока: голова с лицом и причёской, одежда, рюкзак, анимации. */
 export class PlayerModel {
   readonly root = new Group();
-<<<<<<< HEAD
-  /** Группа тела вращается вокруг таза; её дочерний rig возвращает части на их места. */
   private body = new Group();
-  private rig = new Group();
-  private swim = new SwimAnimator();
-  private readonly swimQuat = new Quaternion();
-  private readonly swingQuat = new Quaternion();
-  private readonly swingEuler = new Euler();
-  private readonly landEuler = new Euler();
-  private readonly landHip = new Vector3();
-  private heldWanted = false;
-=======
-  private body = new Group();
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
   private parts: PartRefs;
   private headMesh: Mesh;
   private heldMesh!: Mesh;
@@ -413,10 +367,7 @@ export class PlayerModel {
 
   private time = 0;
   private walkPhase = 0;
-<<<<<<< HEAD
-=======
   private swimPhase = 0;
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
   private smoothSpeed = 0;
   private actionTime = Number.POSITIVE_INFINITY;
   private blinkLeft = 0;
@@ -434,13 +385,6 @@ export class PlayerModel {
     }
     this.geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
     this.body.name = 'animated-body';
-<<<<<<< HEAD
-    this.body.position.y = HIP_HEIGHT;
-    this.rig.name = 'body-rig';
-    this.rig.position.y = -HIP_HEIGHT;
-    this.body.add(this.rig);
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
     this.root.add(this.body);
     this.root.name = 'player-model';
 
@@ -470,11 +414,7 @@ export class PlayerModel {
     const hairLightMat = this.solid(HAIR_LIGHT);
 
     // --- Ноги: отдельные колено, голень и ботинок для живого шага ---
-<<<<<<< HEAD
-    const makeLeg = (side: -1 | 1): { leg: Group; knee: Group; shoe: Group } => {
-=======
     const makeLeg = (side: -1 | 1): { leg: Group; knee: Group } => {
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
       const leg = new Group();
       leg.name = side < 0 ? 'leg-left' : 'leg-right';
       leg.position.set(side * 0.13, 0.68, 0);
@@ -501,30 +441,17 @@ export class PlayerModel {
       this.box(shoe, this.solid(0xe8e2d4), [0.16, 0.022, 0.035], [0, 0.12, -0.045], 'lace-2');
       this.box(shoe, this.solid(0xe8e2d4), [0.16, 0.022, 0.035], [0, 0.12, 0.02], 'lace-3');
       knee.add(shoe);
-<<<<<<< HEAD
-      this.rig.add(leg);
-      return { leg, knee, shoe };
-    };
-    const { leg: legL, knee: kneeL, shoe: shoeL } = makeLeg(-1);
-    const { leg: legR, knee: kneeR, shoe: shoeR } = makeLeg(1);
-=======
       this.body.add(leg);
       return { leg, knee };
     };
     const { leg: legL, knee: kneeL } = makeLeg(-1);
     const { leg: legR, knee: kneeR } = makeLeg(1);
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 
     // --- Торс, куртка и туристический рюкзак ---
     const torso = new Group();
     torso.name = 'torso';
-<<<<<<< HEAD
-    torso.position.set(0, HIP_HEIGHT, 0);
-    this.rig.add(torso);
-=======
     torso.position.set(0, 0.68, 0);
     this.body.add(torso);
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
     this.box(torso, torsoMats, [0.52, 0.66, 0.28], [0, 0.33, 0], 'chest');
     this.box(torso, this.solid(0x6e4a26), [0.54, 0.09, 0.3], [0, 0.05, 0], 'belt');
     this.box(torso, this.solid(0xf2c14e), [0.14, 0.07, 0.02], [0, 0.05, -0.16], 'buckle');
@@ -615,11 +542,7 @@ export class PlayerModel {
     this.box(head, this.solid(SKIN), [0.07, 0.055, 0.075], [0, 0.15, -0.238], 'nose-tip');
     this.box(head, this.solid(SKIN_DARK), [0.038, 0.012, 0.012], [0, 0.119, -0.275], 'nose-shadow');
 
-<<<<<<< HEAD
-    this.parts = { head, torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR, shoeL, shoeR };
-=======
     this.parts = { head, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR };
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
   }
 
   private register(material: Material): Material {
@@ -657,10 +580,6 @@ export class PlayerModel {
     this.heldBlockId = blockId;
     const def = BLOCKS[blockId];
     if (!def || blockId === AIR || def.shape === 'cross') {
-<<<<<<< HEAD
-      this.heldWanted = false;
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
       this.heldMesh.visible = false;
       return;
     }
@@ -671,10 +590,6 @@ export class PlayerModel {
       mats.push(this.texMatFromPixels(new Uint8Array(pixels), TEX_SIZE, def.shape !== 'cube'));
     }
     this.heldMesh.material = mats;
-<<<<<<< HEAD
-    this.heldWanted = true;
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
     this.heldMesh.visible = true;
   }
 
@@ -702,20 +617,6 @@ export class PlayerModel {
   update(dt: number, p: PlayerPoseSource): void {
     this.time += dt;
     this.root.position.set(p.x, p.y, p.z);
-<<<<<<< HEAD
-
-    const speed = Math.hypot(p.vx, p.vz);
-    this.smoothSpeed += (speed - this.smoothSpeed) * (1 - Math.exp(-10 * dt));
-    // Плавание ведёт отдельный аниматор: он же задаёт курс, наклон корпуса и посадку на воду.
-    const swimming = p.inWater && !p.onGround && !p.flying;
-    const swim = this.swim.update(dt, {
-      y: p.y, vx: p.vx, vy: p.vy, vz: p.vz, yaw: p.yaw, pitch: p.pitch, swimming,
-      headInWater: p.headInWater, waterSurface: p.waterSurfaceY,
-    });
-    const sw = swim.weight;
-    this.root.rotation.y = p.yaw + swim.headingOffset * sw;
-    const { head, torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR, shoeL, shoeR } = this.parts;
-=======
     this.root.rotation.y = p.yaw;
 
     const speed = Math.hypot(p.vx, p.vz);
@@ -724,7 +625,6 @@ export class PlayerModel {
     const swimMotion = Math.max(this.smoothSpeed, Math.abs(p.vy) * 0.55);
     const swimEffort = swimming ? Math.min(1, swimMotion / 2.5) : 0;
     const { head, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR } = this.parts;
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 
     // Моргание проходит тремя фазами: веки опускаются, закрываются и плавно открываются.
     this.nextBlink -= dt;
@@ -742,19 +642,8 @@ export class PlayerModel {
     }
     this.headMesh.material = faceMats;
 
-<<<<<<< HEAD
-    // Поза каждый кадр собирается заново: после плавания в суставах не остаётся лишних поворотов.
-    for (const joint of [head, torso, armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR, shoeL, shoeR]) {
-      joint.rotation.set(0, 0, 0);
-    }
-
-    // Голова следует за наклоном взгляда.
-    const landHeadPitch = p.pitch * 0.85;
-    head.rotation.x = landHeadPitch;
-=======
     // Голова следует за наклоном взгляда и чуть поднимается, когда тело вытянуто для плавания.
     head.rotation.x = p.pitch * 0.85 + (swimming ? 0.2 : 0);
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
     head.rotation.z = Math.sin(this.time * 0.7) * 0.01;
 
     let legSwing = 0;
@@ -764,18 +653,12 @@ export class PlayerModel {
     let kneeLFlex = 0;
     let kneeRFlex = 0;
     let lean = 0;
-<<<<<<< HEAD
-    let bob = Math.sin(this.time * 1.8) * 0.008; // дыхание
-    armL.rotation.z = -0.07;
-    armR.rotation.z = 0.07;
-=======
     let swimRoll = 0;
     let bob = Math.sin(this.time * 1.8) * 0.008; // дыхание
     armL.rotation.z = -0.07;
     armR.rotation.z = 0.07;
     legL.rotation.x = 0;
     legR.rotation.x = 0;
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
 
     if (p.flying) {
       // Парение: руки слегка назад, ноги вытянуты, лёгкое покачивание.
@@ -787,11 +670,6 @@ export class PlayerModel {
       bob = Math.sin(this.time * 2) * 0.035;
       kneeLFlex = -0.05;
       kneeRFlex = -0.05;
-<<<<<<< HEAD
-    } else if (!p.onGround) {
-      // Прыжок/падение: руки в стороны, ноги согнуты по-разному. Пловец стартует отсюда и плавно
-      // переходит в позу пловца (SwimPose), поэтому при входе в воду поза не «подпрыгивает».
-=======
     } else if (swimming) {
       // Кроль по биомеханике: тело вытянуто горизонтально, руки описывают
       // полный круг попеременно — одна тянет под водой, вторая в это время
@@ -839,7 +717,6 @@ export class PlayerModel {
       bob = 0.55 + Math.sin(this.time * 2.4) * (0.012 + 0.012 * swimEffort);
     } else if (!p.onGround) {
       // Прыжок/падение: руки в стороны, ноги согнуты по-разному.
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
       const falling = p.vy < -2;
       armL.rotation.z = falling ? -0.85 : -0.45;
       armR.rotation.z = falling ? 0.85 : 0.45;
@@ -878,27 +755,16 @@ export class PlayerModel {
     }
 
     // Взмах правой рукой поверх обычной анимации (добыча/удар/установка).
-<<<<<<< HEAD
-    let swing = -1;
-=======
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
     if (this.actionTime !== Number.POSITIVE_INFINITY) {
       this.actionTime += dt;
       const dur = 0.38;
       if (this.actionTime >= dur) {
         this.actionTime = Number.POSITIVE_INFINITY;
       } else {
-<<<<<<< HEAD
-        swing = Math.sin((this.actionTime / dur) * Math.PI);
-        armR.rotation.x = -0.25 + swing * 1.85;
-        armR.rotation.z = 0.07 + swing * 0.15;
-        elbowRFlex = 0.18 + swing * 0.24;
-=======
         const k = this.actionTime / dur;
         armR.rotation.x = -0.25 + Math.sin(k * Math.PI) * 1.85;
         armR.rotation.z = 0.07 + Math.sin(k * Math.PI) * 0.15;
         elbowRFlex = 0.18 + Math.sin(k * Math.PI) * 0.24;
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
       }
     }
 
@@ -906,58 +772,6 @@ export class PlayerModel {
     elbowR.rotation.x = elbowRFlex;
     kneeL.rotation.x = kneeLFlex;
     kneeR.rotation.x = kneeRFlex;
-<<<<<<< HEAD
-
-    // --- Поза пловца поверх земной: суставы смешиваются по весу, корпус вращается вокруг таза ---
-    if (sw > 0.002) {
-      this.blendSwimLimbs(swim);
-      const prone = swim.mix.crawl + swim.mix.dive;
-      if (swing >= 0) {
-        // Стоя на воде рука по-прежнему бьёт; в кроле и нырке она занята гребком.
-        const overlay = 1 - sw * prone;
-        this.swingQuat.setFromEuler(this.swingEuler.set(-0.25 + swing * 1.85, 0, 0.07 + swing * 0.15));
-        armR.quaternion.slerp(this.swingQuat, overlay);
-        elbowR.rotation.x += (0.18 + swing * 0.24 - elbowR.rotation.x) * overlay;
-      }
-      head.rotation.x = lerp(landHeadPitch, swim.headPitch, sw);
-      head.rotation.y = sw * swim.headYaw;
-      torso.rotation.y = sw * swim.shoulderTwist;
-    }
-    this.heldMesh.visible = this.heldWanted && !(sw > 0.5 && swim.handsFree);
-
-    // Корпус: на суше наклон и крен идут вокруг ступней, как и раньше, а пловец вращается вокруг таза.
-    // Тело повёрнуто вокруг таза, поэтому «земное» вращение вокруг ступней добавляет сдвиг самого таза.
-    const landRoll = p.onGround && this.smoothSpeed > 0.15 ? Math.sin(this.walkPhase) * 0.025 : 0;
-    this.landEuler.set(lean, 0, landRoll);
-    this.landHip.set(0, HIP_HEIGHT, 0).applyEuler(this.landEuler);
-    this.body.position.set(
-      lerp(this.landHip.x, 0, sw),
-      lerp(this.landHip.y + bob, HIP_HEIGHT + swim.lift + swim.bob, sw),
-      lerp(this.landHip.z, 0, sw),
-    );
-    this.body.rotation.set(lerp(lean, swim.lean, sw), sw * swim.hipRoll, (1 - sw) * landRoll);
-  }
-
-  /** Смешать суставы рук и ног с позой пловца по её весу. */
-  private blendSwimLimbs(swim: SwimPose): void {
-    const w = swim.weight;
-    const { armL, armR, elbowL, elbowR, legL, legR, kneeL, kneeR, shoeL, shoeR } = this.parts;
-    const arm = (shoulder: Group, elbow: Group, target: LimbTarget): void => {
-      const flex = aimLimb(target.upper, target.lower, -1, this.swimQuat);
-      shoulder.quaternion.slerp(this.swimQuat, w);
-      elbow.rotation.x += (flex - elbow.rotation.x) * w;
-    };
-    const leg = (hip: Group, knee: Group, shoe: Group, target: LimbTarget): void => {
-      const flex = aimLimb(target.upper, target.lower, 1, this.swimQuat);
-      hip.quaternion.slerp(this.swimQuat, w);
-      knee.rotation.x += (-flex - knee.rotation.x) * w;
-      shoe.rotation.x = -swim.footPlantar * w;
-    };
-    arm(armL, elbowL, swim.armL);
-    arm(armR, elbowR, swim.armR);
-    leg(legL, kneeL, shoeL, swim.legL);
-    leg(legR, kneeR, shoeR, swim.legR);
-=======
     this.body.position.y = bob;
     this.body.rotation.x = lean;
     this.body.rotation.z = swimming
@@ -965,7 +779,6 @@ export class PlayerModel {
       : p.onGround && this.smoothSpeed > 0.15
         ? Math.sin(this.walkPhase) * 0.025
         : 0;
->>>>>>> origin/arena/51fc7917-minecraft-pe-edition-clone
   }
 
   dispose(): void {

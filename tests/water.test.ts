@@ -170,15 +170,36 @@ test('прыжок из воды: у дна и у поверхности игр�
   assert.ok(maxY > 44.2, `должен выпрыгнуть из воды (максимум y=${maxY})`);
 });
 
-test('после плавания персонаж залазит на блок берега (автопрыжок)', () => {
+test('после плавания персонаж спокойно залазит на берег и не взлетает выше платформы', () => {
   const world = waterWorld();
   const p = new Player(world);
   p.teleport(8.5, 43.2, 12.5);
-  step(p, { ...idle, moveZ: 1 }, 3);
+  let maxY = p.y;
+  for (let i = 0; i < 3 * 60; i++) {
+    p.update(1 / 60, { ...idle, moveZ: 1 }, true);
+    maxY = Math.max(maxY, p.y);
+  }
   assert.ok(p.onGround, 'должен стоять на берегу');
   assert.ok(Math.abs(p.y - 44) < 0.1, `должен залезть на полку (верх 44): y=${p.y}`);
+  assert.ok(maxY <= 44.05, `не должен взлетать выше верха берега: максимум y=${maxY}`);
   assert.ok(p.z < 8.5, `должен выйти на сушу: z=${p.z}`);
   assert.equal(p.inWater, false);
+});
+
+test('при подъёме из глубокой воды на двухблочный берег игрок останавливается на его поверхности', () => {
+  const world = waterWorld();
+  for (let z = -8; z <= 7; z++) for (let x = 3; x <= 13; x++) world.setBlock(x, 44, z, STONE);
+  const p = new Player(world);
+  p.teleport(8.5, 43.2, 12.5);
+  let maxY = p.y;
+  for (let i = 0; i < 4 * 60; i++) {
+    p.update(1 / 60, { ...idle, moveZ: 1 }, true);
+    maxY = Math.max(maxY, p.y);
+  }
+  assert.ok(p.onGround, 'должен стоять на высоком берегу');
+  assert.ok(Math.abs(p.y - 45) < 0.1, `должен залезть на верх y=45: y=${p.y}`);
+  assert.ok(maxY <= 45.05, `не должен перелетать выше целевой поверхности: максимум y=${maxY}`);
+  assert.ok(p.z < 8.5, `должен выйти на сушу: z=${p.z}`);
 });
 
 test('залезть на берег можно и с кнопкой прыжка без автопрыжка', () => {
