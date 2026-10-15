@@ -90,7 +90,7 @@ test('анимация модели: при ходьбе ноги и руки м
   assert.ok(Math.abs(legL.rotation.x) > 0.05, `нога должна махать: ${legL.rotation.x}`);
   assert.ok(Math.sign(legL.rotation.x) === -Math.sign(legR.rotation.x), 'ноги машут в противофазе');
   assert.ok(elbowL.rotation.x > 0.05, 'локоть сгибается при ходьбе');
-  assert.ok(kneeL.rotation.x + kneeR.rotation.x > 0, 'колено слегка сгибается в шаге');
+  assert.ok(kneeL.rotation.x + kneeR.rotation.x < 0, 'колени сгибаются назад — поднимается пятка');
   assert.ok(Math.abs(head.rotation.x - 0.4 * 0.85) < 1e-9, 'голова наклоняется за взглядом');
   assert.ok(Math.abs(model.root.position.y - 41) < 1e-9, 'модель стоит на ногах игрока');
   assert.ok(Math.abs(model.root.rotation.y - 0.5) < 1e-9, 'модель повёрнута по yaw');
@@ -169,14 +169,22 @@ test('кроль в мировых координатах: кисти пооче
   const handL = model.root.getObjectByName('hand-left')!;
   const handR = model.root.getObjectByName('hand-right')!;
   const [shoeL, shoeR] = named(model, 'shoe');
+  const kneeL = model.root.getObjectByName('knee-left')!;
+  const kneeR = model.root.getObjectByName('knee-right')!;
   const hy: number[][] = [[], []];
   const sy: number[][] = [[], []];
+  let maxKnee = -Infinity;
+  let minKnee = Infinity;
   run(model, pose, 3, () => {
     hy[0].push(worldOf(handL).y);
     hy[1].push(worldOf(handR).y);
     sy[0].push(worldOf(shoeL).y);
     sy[1].push(worldOf(shoeR).y);
+    maxKnee = Math.max(maxKnee, kneeL.rotation.x, kneeR.rotation.x);
+    minKnee = Math.min(minKnee, kneeL.rotation.x, kneeR.rotation.x);
   });
+  assert.ok(maxKnee < 0.02, `колени никогда не сгибаются вперёд (максимум ${maxKnee.toFixed(3)})`);
+  assert.ok(minKnee < -0.3, `колено сгибается назад в начале удара вниз (${minKnee.toFixed(2)})`);
   const above = hy.map((series) => series.filter((y) => y > SURFACE).length / series.length);
   assert.ok(above[0] > 0.15 && above[0] < 0.45 && above[1] > 0.15 && above[1] < 0.45,
     `каждая кисть проводит над водой 15–45% цикла (вынос), а не всё время: ${above.map((v) => v.toFixed(2))}`);
@@ -299,9 +307,12 @@ test('взмах рукой в стойке на воде работает, в �
   const wadingBody = waderModel.root.getObjectByName('animated-body')!;
   const wadingLeft = waderModel.root.getObjectByName('leg-left')!;
   const wadingRight = waderModel.root.getObjectByName('leg-right')!;
+  const wadingKneeL = waderModel.root.getObjectByName('knee-left')!;
+  const wadingKneeR = waderModel.root.getObjectByName('knee-right')!;
   assert.ok(Math.abs(wadingBody.rotation.x) < 0.02, 'на дне персонаж остаётся вертикальным');
   assert.ok(wadingLeft.rotation.x * wadingRight.rotation.x < 0, 'по дну он действительно шагает');
   assert.ok(Math.abs(wadingLeft.rotation.x) < 0.5, 'шаг в воде короче, чем на суше');
+  assert.ok(wadingKneeL.rotation.x + wadingKneeR.rotation.x < 0, 'и по дну колени сгибаются назад');
   waderModel.dispose();
 });
 

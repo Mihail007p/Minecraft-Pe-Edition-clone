@@ -9,6 +9,10 @@
 // прыжок и падение, плавание как у человека (кроль с креном и дыханием, стойка на воде
 // со скуллингом и «яйцебитером», нырок «стрелой» — см. SwimPose.ts), парение в полёте,
 // взмах правой рукой при добыче/установке блока и моргание.
+//
+// Знаки суставов: вперёд модели — локальный −Z, поэтому отрицательный
+// rotation.x сгибает колено назад (пятка поднимается), а положительный
+// rotation.x сгибает локоть вперёд — оба так, как сгибаются у человека.
 
 import {
   BoxGeometry, DataTexture, Euler, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial,
@@ -693,12 +697,10 @@ export class PlayerModel {
       armR.rotation.x = 0.3 - Math.sin(this.time * 2) * 0.05;
       elbowLFlex = 0.12;
       elbowRFlex = 0.12;
-      legL.rotation.x = 0.12;
-      legR.rotation.x = -0.06;
-      kneeLFlex = 0.05;
-      kneeRFlex = 0.05;
       lean = -0.08;
       bob = Math.sin(this.time * 2) * 0.035;
+      kneeLFlex = -0.05;
+      kneeRFlex = -0.05;
     } else if (!p.onGround) {
       // Прыжок/падение: руки в стороны, ноги согнуты по-разному. Пловец стартует отсюда и плавно
       // переходит в позу пловца (SwimPose), поэтому при входе в воду поза не «подпрыгивает».
@@ -711,8 +713,9 @@ export class PlayerModel {
       elbowRFlex = falling ? 0.28 : 0.18;
       legL.rotation.x = falling ? 0.25 : -0.55;
       legR.rotation.x = falling ? -0.2 : 0.3;
-      kneeLFlex = falling ? 0.1 : 0.24;
-      kneeRFlex = falling ? 0.1 : 0.18;
+      // Колени сгибаются назад — поджимаем пятки, а не «птичьи» ноги вперёд.
+      kneeLFlex = falling ? -0.1 : -0.24;
+      kneeRFlex = falling ? -0.1 : -0.18;
       lean = falling ? 0.04 : -0.06;
     } else if (this.smoothSpeed > 0.15) {
       // На суше — обычный шаг; стоя на дне — более короткие и медленные шаги в воде.
@@ -728,8 +731,9 @@ export class PlayerModel {
       armR.rotation.x = armSwing;
       elbowLFlex = 0.08 + Math.abs(armSwing) * 0.18;
       elbowRFlex = 0.08 + Math.abs(armSwing) * 0.18;
-      kneeLFlex = Math.max(0, -legSwing) * 0.58;
-      kneeRFlex = Math.max(0, legSwing) * 0.58;
+      // Колено сгибается назад, когда нога позади корпуса: поднимается пятка.
+      kneeLFlex = -Math.max(0, -legSwing) * 0.58;
+      kneeRFlex = -Math.max(0, legSwing) * 0.58;
       lean = wading ? -0.015 : this.smoothSpeed > 5 ? -0.14 : -0.05;
       bob = Math.abs(Math.sin(this.walkPhase)) * 0.045 * Math.min(1, this.smoothSpeed / 4.3) * (wading ? 0.45 : 1);
     } else {
